@@ -21,8 +21,8 @@ sys.path.append('../')
 
 from config.config import cfg
 from data.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
-from data.RHD.dataset import Dataset as InterHand2M6Dataset
-from data.STB.dataset import Dataset as InterHand2M6Dataset
+from data.RHD.dataset import Dataset as RHDDataset
+from data.STB.dataset import Dataset as STBDataset
 
 from common.timer import Timer
 from common.logger import colorlogger
@@ -55,8 +55,9 @@ class Base(object):
 
 class Trainer(Base):
     
-    def __init__(self):
+    def __init__(self, dataset_name):
         super(Trainer, self).__init__(log_name = 'train_logs.txt')
+        self.dataset_name = dataset_name
 
     def get_optimizer(self, model):
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
@@ -85,7 +86,15 @@ class Trainer(Base):
     def _make_batch_generator(self):
         # data load and construct batch generator
         self.logger.info("Creating train dataset...")
-        trainset_loader = Dataset(transforms.ToTensor(), "train")
+        if self.dataset_name == 'InterHand2.6M':
+            trainset_loader = InterHand2M6Dataset(transforms.ToTensor(), "train")
+        elif self.dataset_name == 'RHD':
+            trainset_loader = RHDDataset(transforms.ToTensor(), "train")
+        elif self.dataset_name == 'STB':
+            trainset_loader = STBDataset(transforms.ToTensor(), "train")
+        else:
+            raise ValueError('Invalid dataset name')
+        
         batch_generator = DataLoader(dataset=trainset_loader, batch_size=cfg.num_gpus*cfg.train_batch_size, shuffle=True, num_workers=cfg.num_thread, pin_memory=True)
         
         self.joint_num = trainset_loader.joint_num
@@ -132,14 +141,23 @@ class Trainer(Base):
 
 class Tester(Base):
     
-    def __init__(self, test_epoch):
+    def __init__(self, test_epoch, dataset_name = None):
         self.test_epoch = int(test_epoch)
         super(Tester, self).__init__(log_name = 'test_logs.txt')
+        self.dataset_name = dataset_name
 
     def _make_batch_generator(self, test_set):
         # data load and construct batch generator
         self.logger.info("Creating " + test_set + " dataset...")
-        testset_loader = Dataset(transforms.ToTensor(), test_set)
+        if self.dataset_name == 'InterHand2.6M':
+            testset_loader = InterHand2M6Dataset(transforms.ToTensor(), test_set)
+        elif self.dataset_name == 'RHD':
+            testset_loader = RHDDataset(transforms.ToTensor(), test_set)
+        elif self.dataset_name == 'STB':
+            testset_loader = STBDataset(transforms.ToTensor(), test_set)
+        else:
+            raise ValueError('Invalid dataset name')
+
         batch_generator = DataLoader(dataset=testset_loader, batch_size=cfg.num_gpus*cfg.test_batch_size, shuffle=False, num_workers=cfg.num_thread, pin_memory=True)
         
         self.joint_num = testset_loader.joint_num
