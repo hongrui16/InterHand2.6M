@@ -14,13 +14,20 @@ import abc
 from torch.utils.data import DataLoader
 import torch.optim
 import torchvision.transforms as transforms
-
-from config import cfg
-from dataset import Dataset
-from timer import Timer
-from logger import colorlogger
 from torch.nn.parallel.data_parallel import DataParallel
-from model import get_model
+import sys, os
+
+sys.path.append('../')
+
+from config.config import cfg
+from data.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
+from data.RHD.dataset import Dataset as InterHand2M6Dataset
+from data.STB.dataset import Dataset as InterHand2M6Dataset
+
+from common.timer import Timer
+from common.logger import colorlogger
+
+from common.model import get_model
 
 class Base(object):
     __metaclass__ = abc.ABCMeta

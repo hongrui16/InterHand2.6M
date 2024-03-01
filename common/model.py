@@ -8,10 +8,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from nets.module import BackboneNet, PoseNet
-from nets.loss import JointHeatmapLoss, HandTypeLoss, RelRootDepthLoss
-from config import cfg
 import math
+
+from common.nets.module import BackboneNet, PoseNet
+from common.nets.loss import JointHeatmapLoss, HandTypeLoss, RelRootDepthLoss
+from config.config import cfg
+
 
 class Model(nn.Module):
     def __init__(self, backbone_net, pose_net):

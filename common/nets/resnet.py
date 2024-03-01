@@ -7,11 +7,13 @@
 
 import os
 import os.path as osp
-from config import cfg
 import torch
 import torch.nn as nn
 from torchvision.models.resnet import BasicBlock, Bottleneck
 from torchvision.models.resnet import model_urls
+
+from config.config import cfg
+
 
 class ResNetBackbone(nn.Module):
 

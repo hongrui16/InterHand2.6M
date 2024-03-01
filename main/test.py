@@ -9,12 +9,16 @@ import argparse
 from tqdm import tqdm
 import numpy as np
 import cv2
-from config import cfg
+
 import torch
-from base import Tester
-from utils.vis import vis_keypoints
 import torch.backends.cudnn as cudnn
-from utils.transforms import flip
+import torch.nn as nn
+sys.path.append('../')
+
+from config.config import cfg
+from common.utils.vis import vis_keypoints
+from common.utils.transforms import flip
+from base import Tester
 
 def parse_args():
     parser = argparse.ArgumentParser()

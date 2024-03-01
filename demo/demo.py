@@ -16,13 +16,11 @@ import torchvision.transforms as transforms
 from torch.nn.parallel.data_parallel import DataParallel
 import torch.backends.cudnn as cudnn
 
-sys.path.insert(0, osp.join('..', 'main'))
-sys.path.insert(0, osp.join('..', 'data'))
-sys.path.insert(0, osp.join('..', 'common'))
-from config import cfg
-from model import get_model
-from utils.preprocessing import load_img, load_skeleton, process_bbox, generate_patch_image, transform_input_to_output_space, trans_point2d
-from utils.vis import vis_keypoints, vis_3d_keypoints
+sys.path.append('../')
+from config.config import cfg
+from common.model import get_model
+from common.utils.preprocessing import load_img, load_skeleton, process_bbox, generate_patch_image, transform_input_to_output_space, trans_point2d
+from common.utils.vis import vis_keypoints, vis_3d_keypoints
 
 def parse_args():
     parser = argparse.ArgumentParser()

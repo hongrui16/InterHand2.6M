@@ -11,16 +11,18 @@ import torch.utils.data
 import cv2
 from glob import glob
 import os.path as osp
-from config import cfg
-from utils.preprocessing import load_img, load_skeleton, get_bbox, process_bbox, augmentation, transform_input_to_output_space, trans_point2d
-from utils.transforms import world2cam, cam2pixel, pixel2cam
-from utils.vis import vis_keypoints, vis_3d_keypoints
 from PIL import Image, ImageDraw
 import random
 import json
 import math
 from pycocotools.coco import COCO
 import scipy.io as sio
+
+from config.config import cfg
+from common.utils.preprocessing import load_img, load_skeleton, get_bbox, process_bbox, augmentation, transform_input_to_output_space, trans_point2d
+from common.utils.transforms import world2cam, cam2pixel, pixel2cam
+from common.utils.vis import vis_keypoints, vis_3d_keypoints
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):

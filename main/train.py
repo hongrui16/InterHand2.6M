@@ -6,10 +6,15 @@
 #
 
 import argparse
-from config import cfg
+
 import torch
-from base import Trainer
 import torch.backends.cudnn as cudnn
+import os, sys
+sys.path.append('../')
+
+from config.config import cfg
+
+from base import Trainer
 
 def parse_args():
     parser = argparse.ArgumentParser()

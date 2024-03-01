@@ -8,9 +8,9 @@
 import os
 import cv2
 import numpy as np
-from config import cfg
 import random
 import math
+from config.config import cfg
 
 def load_img(path, order='RGB'):
     

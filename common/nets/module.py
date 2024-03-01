@@ -4,11 +4,16 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
+import numpy as np
+import os, sys
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from config import cfg
+
+sys.path.append('../..')
+
+from config.config import cfg
+
 from nets.layer import make_linear_layers, make_conv_layers, make_deconv_layers, make_upsample_layers
 from nets.resnet import ResNetBackbone
 import math
