@@ -20,9 +20,9 @@ import sys, os
 sys.path.append('../')
 
 from config.config import cfg
-from data.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
-from data.RHD.dataset import Dataset as RHDDataset
-from data.STB.dataset import Dataset as STBDataset
+from dataloader.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
+from dataloader.RHD.dataset import Dataset as RHDDataset
+from dataloader.STB.dataset import Dataset as STBDataset
 
 from common.timer import Timer
 from common.logger import colorlogger
