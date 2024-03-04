@@ -12,7 +12,7 @@ from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
 import math
 
-from config.config import cfg
+from config import config as cfg
 
 def make_linear_layers(feat_dims, relu_final=True):
     layers = []

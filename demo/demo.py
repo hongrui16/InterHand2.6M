@@ -17,7 +17,7 @@ from torch.nn.parallel.data_parallel import DataParallel
 import torch.backends.cudnn as cudnn
 
 sys.path.append('../')
-from config.config import cfg
+from config import config as cfg
 from common.model import get_model
 from common.utils.preprocessing import load_img, load_skeleton, process_bbox, generate_patch_image, transform_input_to_output_space, trans_point2d
 from common.utils.vis import vis_keypoints, vis_3d_keypoints
@@ -56,7 +56,7 @@ skeleton = load_skeleton(osp.join('../data/InterHand2.6M/annotations/skeleton.tx
 model_path = './snapshot_%d.pth.tar' % int(args.test_epoch)
 assert osp.exists(model_path), 'Cannot find model at ' + model_path
 print('Load checkpoint from {}'.format(model_path))
-model = get_model('test', joint_num)
+model = get_model(joint_num)
 model = DataParallel(model).cuda()
 ckpt = torch.load(model_path)
 model.load_state_dict(ckpt['network'], strict=False)

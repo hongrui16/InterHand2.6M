@@ -17,7 +17,7 @@ import json
 import math
 from pycocotools.coco import COCO
 
-from config.config import cfg
+from config import config as cfg
 from common.utils.preprocessing import load_img, load_skeleton, process_bbox, get_aug_config, augmentation, transform_input_to_output_space, generate_patch_image, trans_point2d
 from common.utils.transforms import world2cam, cam2pixel, pixel2cam
 from common.utils.vis import vis_keypoints, vis_3d_keypoints

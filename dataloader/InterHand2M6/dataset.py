@@ -18,7 +18,7 @@ import math
 from pycocotools.coco import COCO
 import scipy.io as sio
 
-from config.config import cfg
+from config import config as cfg
 from common.utils.preprocessing import load_img, load_skeleton, get_bbox, process_bbox, augmentation, transform_input_to_output_space, trans_point2d
 from common.utils.transforms import world2cam, cam2pixel, pixel2cam
 from common.utils.vis import vis_keypoints, vis_3d_keypoints
@@ -144,7 +144,8 @@ class Dataset(torch.utils.data.Dataset):
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'hand_type_valid': hand_type_valid, 'inv_trans': inv_trans, 'capture': int(data['capture']), 'cam': int(data['cam']), 'frame': int(data['frame'])}
         return inputs, targets, meta_info
 
-    def evaluate(self, preds):
+    def evaluate(self, preds, mode = 'test'):
+        assert mode in ('test', 'validation')
 
         print() 
         print('Evaluation start...')
@@ -157,7 +158,8 @@ class Dataset(torch.utils.data.Dataset):
         mpjpe_sh = [[] for _ in range(self.joint_num*2)]
         mpjpe_ih = [[] for _ in range(self.joint_num*2)]
         mrrpe = []
-        acc_hand_cls = 0; hand_cls_cnt = 0;
+        acc_hand_cls = 0
+        hand_cls_cnt = 0
         for n in range(sample_num):
             data = gts[n]
             bbox, cam_param, joint, gt_hand_type, hand_type_valid = data['bbox'], data['cam_param'], data['joint'], data['hand_type'], data['hand_type_valid']
@@ -252,6 +254,10 @@ class Dataset(torch.utils.data.Dataset):
             joint_name = self.skeleton[j]['name']
             eval_summary += (joint_name + ': %.2f, ' % tot_err_j)
             tot_err.append(tot_err_j)
+
+        if mode == 'validation':
+            return np.mean(tot_err)
+        
         print(eval_summary)
         print('MPJPE for all hand sequences: %.2f' % (np.mean(tot_err)))
         print()

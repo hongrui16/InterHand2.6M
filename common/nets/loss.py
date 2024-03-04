@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
 import math
-from config.config import cfg
+from config import config as cfg
 
 class JointHeatmapLoss(nn.Module):
     def __ini__(self):

@@ -12,7 +12,7 @@ from torch.nn import functional as F
 
 sys.path.append('../..')
 
-from config.config import cfg
+from config import config as cfg
 
 from nets.layer import make_linear_layers, make_conv_layers, make_deconv_layers, make_upsample_layers
 from nets.resnet import ResNetBackbone
@@ -21,11 +21,8 @@ import math
 class BackboneNet(nn.Module):
     def __init__(self):
         super(BackboneNet, self).__init__()
-        self.resnet = ResNetBackbone(cfg.resnet_type)
+        self.resnet = ResNetBackbone(cfg.resnet_type, pretrained=True)
     
-    def init_weights(self):
-        self.resnet.init_weights()
-
     def forward(self, img):
         img_feat = self.resnet(img)
         return img_feat
@@ -62,3 +59,25 @@ class PoseNet(nn.Module):
         hand_type = torch.sigmoid(self.hand_fc(img_feat_gap))
 
         return joint_heatmap3d, root_depth, hand_type
+
+
+if __name__ == '__main__':
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+    img = torch.rand(1,3,256,256).to(device)
+    backbone_net = BackboneNet().to(device)
+    img_feat = backbone_net(img)
+    print(img_feat.shape) ### torch.Size([1, 2048])
+
+    img_feat = torch.rand(1,2048,8,8).to(device)
+    
+    
+    pose_net = PoseNet(21).to(device)
+    joint_heatmap3d, root_depth, hand_type = pose_net(img_feat)
+    print(joint_heatmap3d.shape, root_depth.shape, hand_type.shape) ### torch.Size([1, 42, 64, 64, 64]) torch.Size([1, 1]) torch.Size([1, 2])
+    print(joint_heatmap3d[0,0,0,0,0])
+    print(root_depth[0,0])
+    print(hand_type[0,0])
+    print('Done')

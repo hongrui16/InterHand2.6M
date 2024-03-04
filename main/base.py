@@ -19,7 +19,7 @@ import sys, os
 
 sys.path.append('../')
 
-from config.config import cfg
+from config import config as cfg
 from dataloader.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
 from dataloader.RHD.dataset import Dataset as RHDDataset
 from dataloader.STB.dataset import Dataset as STBDataset
@@ -104,7 +104,7 @@ class Trainer(Base):
     def _make_model(self):
         # prepare network
         self.logger.info("Creating graph and optimizer...")
-        model = get_model('train', self.joint_num)
+        model = get_model(self.joint_num)
         model = DataParallel(model).cuda()
         optimizer = self.get_optimizer(model)
         if cfg.continue_train:
@@ -171,7 +171,7 @@ class Tester(Base):
         
         # prepare network
         self.logger.info("Creating graph...")
-        model = get_model('test', self.joint_num)
+        model = get_model(self.joint_num)
         model = DataParallel(model).cuda()
         ckpt = torch.load(model_path)
         model.load_state_dict(ckpt['network'])
