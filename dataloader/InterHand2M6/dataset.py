@@ -154,6 +154,13 @@ class Dataset(torch.utils.data.Dataset):
 
         gts = self.datalist
         preds_joint_coord, preds_rel_root_depth, preds_hand_type, inv_trans = preds['joint_coord'], preds['rel_root_depth'], preds['hand_type'], preds['inv_trans']
+        # if preds_joint_coord is tensor, convert it to numpy
+        if isinstance(preds_joint_coord, torch.Tensor):
+            preds_joint_coord = preds_joint_coord.cpu().numpy()
+            preds_rel_root_depth = preds_rel_root_depth.cpu().numpy()
+            preds_hand_type = preds_hand_type.cpu().numpy()
+            inv_trans = inv_trans.cpu().numpy()
+
         assert len(gts) == len(preds_joint_coord)
         sample_num = len(gts)
         

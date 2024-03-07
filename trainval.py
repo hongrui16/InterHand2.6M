@@ -15,6 +15,7 @@ import platform
 import argparse
 
 from torch.nn.parallel.data_parallel import DataParallel
+import torch.backends.cudnn as cudnn
 
 
 from config import config as cfg
@@ -47,6 +48,7 @@ class Worker(object):
                 device = torch.device(f"cuda")
             else:
                 device = torch.device(f"cuda:{gpu_index}")
+            cudnn.benchmark = True
         else:
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
@@ -177,8 +179,8 @@ class Worker(object):
             if fast_debug and iter > 2:
                 break     
             self.optimizer.zero_grad()
-            _, _, _ = self.model(inputs)
-            loss = self.model.compute_loss(targets, meta_info)
+            joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
+            loss = self.model.compute_loss(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
 
             joint_heatmap_loss = loss['joint_heatmap']
             rel_root_depth_loss = loss['rel_root_depth']
@@ -225,8 +227,8 @@ class Worker(object):
             self.optimizer.zero_grad()
             with torch.no_grad():
 
-                _, _, _ = self.model(inputs)
-                loss = self.model.compute_loss(targets, meta_info)
+                joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
+                loss = self.model.compute_loss(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
 
             joint_heatmap_loss = loss['joint_heatmap']
             rel_root_depth_loss = loss['rel_root_depth']
@@ -301,7 +303,7 @@ class Worker(object):
             epoch_loss = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
             checkpoint = {
                         'epoch': epoch + 1,
-                        'state_dict': self.model.state_dict(),
+                        'network': self.model.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
                         'epoch_loss': epoch_loss,                
                         }

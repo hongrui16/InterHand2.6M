@@ -56,24 +56,24 @@ class InterNet(nn.Module):
         input_img = inputs['img']
         batch_size = input_img.shape[0]
         img_feat = self.backbone_net(input_img)
-        joint_heatmap_out, rel_root_depth_out, hand_type = self.pose_net(img_feat)
-        self.joint_heatmap_out = joint_heatmap_out
-        self.rel_root_depth_out = rel_root_depth_out
-        self.hand_type = hand_type
-        return joint_heatmap_out, rel_root_depth_out, hand_type
+        joint_heatmap_out, rel_root_depth_out, hand_type_out = self.pose_net(img_feat)
+        # self.joint_heatmap_out = joint_heatmap_out
+        # self.rel_root_depth_out = rel_root_depth_out
+        # self.hand_type = hand_type
+        return joint_heatmap_out, rel_root_depth_out, hand_type_out
         
-    def compute_loss(self, targets, meta_info):
+    def compute_loss(self, joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info):
         target_joint_heatmap = self.render_gaussian_heatmap(targets['joint_coord'])
         
         loss = {}
-        loss['joint_heatmap'] = self.joint_heatmap_loss(self.joint_heatmap_out, target_joint_heatmap, meta_info['joint_valid'])
-        loss['rel_root_depth'] = self.rel_root_depth_loss(self.rel_root_depth_out, targets['rel_root_depth'], meta_info['root_valid'])
-        loss['hand_type'] = self.hand_type_loss(self.hand_type, targets['hand_type'], meta_info['hand_type_valid'])
+        loss['joint_heatmap'] = self.joint_heatmap_loss(joint_heatmap_pred, target_joint_heatmap, meta_info['joint_valid'])
+        loss['rel_root_depth'] = self.rel_root_depth_loss(rel_root_depth_pred, targets['rel_root_depth'], meta_info['root_valid'])
+        loss['hand_type'] = self.hand_type_loss(hand_type_pred, targets['hand_type'], meta_info['hand_type_valid'])
         return loss
     
-    def compute_coordinates(self, targets, meta_info):
+    def compute_coordinates(self, joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info):
         out = {}
-        val_z, idx_z = torch.max(self.joint_heatmap_out,2)
+        val_z, idx_z = torch.max(joint_heatmap_pred,2)
         val_zy, idx_zy = torch.max(val_z,2)
         val_zyx, joint_x = torch.max(val_zy,2)
         joint_x = joint_x[:,:,None]
@@ -82,8 +82,8 @@ class InterNet(nn.Module):
         joint_z = torch.gather(joint_z, 2, joint_x)
         joint_coord_out = torch.cat((joint_x, joint_y, joint_z),2).float()
         out['joint_coord'] = joint_coord_out
-        out['rel_root_depth'] = self.rel_root_depth_out
-        out['hand_type'] = self.hand_type
+        out['rel_root_depth'] = rel_root_depth_pred
+        out['hand_type'] = hand_type_pred
         if 'inv_trans' in meta_info:
             out['inv_trans'] = meta_info['inv_trans']
         if 'joint_coord' in targets:

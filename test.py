@@ -15,6 +15,7 @@ import platform
 import argparse
 
 from torch.nn.parallel.data_parallel import DataParallel
+import torch.backends.cudnn as cudnn
 
 
 from config import config as cfg
@@ -47,6 +48,7 @@ class Worker(object):
                 device = torch.device(f"cuda")
             else:
                 device = torch.device(f"cuda:{gpu_index}")
+            cudnn.benchmark = True
         else:
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
@@ -70,8 +72,6 @@ class Worker(object):
         # model = DataParallel(model).cuda()
         
         self.model = model.to(device)
-
-
 
         if cfg.fast_debug:
             test_batch_size = 2
@@ -104,7 +104,7 @@ class Worker(object):
         # model.load_state_dict(checkpoint["state_dict"])
         # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
         # checkpoint = torch.load("checkpoint.pth")
-        self.model.load_state_dict(checkpoint['state_dict'])
+        self.model.load_state_dict(checkpoint['network'])
         
         # if cuda_valid:
         #     self.model.module.load_state_dict(checkpoint['state_dict'])
@@ -128,9 +128,9 @@ class Worker(object):
                 break     
             with torch.no_grad():
 
-                _, _, _ = self.model(inputs)
+                joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
 
-                preds = self.model.compute_coordinates(targets, meta_info)
+                preds = self.model.compute_coordinates(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
                 self.val_set.evaluate(preds)
 
             loginfo = f'{formatted_split} Iter: {idx:05d}/{num_iter:05d}'
