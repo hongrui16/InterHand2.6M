@@ -17,6 +17,8 @@ import json
 import math
 from pycocotools.coco import COCO
 import scipy.io as sio
+import sys, os
+sys.path.append('../..')
 
 from config import config as cfg
 from common.utils.preprocessing import load_img, load_skeleton, get_bbox, process_bbox, augmentation, transform_input_to_output_space, trans_point2d
@@ -255,8 +257,8 @@ class Dataset(torch.utils.data.Dataset):
             eval_summary += (joint_name + ': %.2f, ' % tot_err_j)
             tot_err.append(tot_err_j)
 
-        if mode == 'validation':
-            return np.mean(tot_err)
+        # if mode == 'validation':
+        #     return np.mean(tot_err)
         
         print(eval_summary)
         print('MPJPE for all hand sequences: %.2f' % (np.mean(tot_err)))

@@ -12,12 +12,24 @@ import math
 
 from common.nets.module import BackboneNet, PoseNet
 from common.nets.loss import JointHeatmapLoss, HandTypeLoss, RelRootDepthLoss
+import sys, os
+
+sys.path.append('../')
+
 from config import config as cfg
 
 
-class Model(nn.Module):
-    def __init__(self, backbone_net, pose_net):
-        super(Model, self).__init__()
+class InterNet(nn.Module):
+    def __init__(self, joint_num = None, device = 'cpu'):
+        super(InterNet, self).__init__()
+
+        if joint_num is None:
+            joint_num = cfg.joint_num
+        
+        backbone_net = BackboneNet()
+        pose_net = PoseNet(joint_num)
+
+        pose_net.apply(init_weights)
 
         # modules
         self.backbone_net = backbone_net
@@ -95,12 +107,4 @@ def init_weights(m):
         nn.init.normal_(m.weight,std=0.01)
         nn.init.constant_(m.bias,0)
 
-def get_model(joint_num):
-    backbone_net = BackboneNet()
-    pose_net = PoseNet(joint_num)
-
-    pose_net.apply(init_weights)
-
-    model = Model(backbone_net, pose_net)
-    return model
 

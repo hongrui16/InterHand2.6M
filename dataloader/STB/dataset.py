@@ -16,7 +16,8 @@ import random
 import json
 import math
 from pycocotools.coco import COCO
-
+import sys, os
+sys.path.append('../..')
 from config import config as cfg
 from common.utils.preprocessing import load_img, load_skeleton, process_bbox, get_aug_config, augmentation, transform_input_to_output_space, generate_patch_image, trans_point2d
 from common.utils.transforms import world2cam, cam2pixel, pixel2cam
@@ -35,7 +36,7 @@ class Dataset(torch.utils.data.Dataset):
         self.root_joint_idx = {'right': self.joint_num, 'left': 0}
         self.skeleton = load_skeleton(osp.join(self.root_path, 'skeleton.txt'), self.joint_num*2)
         
-        self.datalist = [];
+        self.datalist = []
         self.annot_path = osp.join(self.root_path, 'STB_' + self.mode + '.json')
         db = COCO(self.annot_path)
 

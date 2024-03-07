@@ -5,12 +5,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import os
-import os.path as osp
-import sys
-import math
-import numpy as np
-
 model_name = 'InterNet'
 
 ## dataset
@@ -26,6 +20,8 @@ output_root_hm_shape = 64 # depth axis
 
 ## model
 resnet_type = 50 # 18, 34, 50, 101, 152
+joint_num = 21
+
 
 ## training config
 lr_dec_epoch = [15, 17] if dataset == 'InterHand2.6M' else [45,47]
@@ -51,3 +47,5 @@ fast_debug = False
 
 resume_weight_path = None
 fine_tune = False
+
+infer_resume_weight_path = None

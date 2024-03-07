@@ -14,7 +14,6 @@ from datetime import datetime
 import platform
 import argparse
 
-from common.model import get_model
 from torch.nn.parallel.data_parallel import DataParallel
 
 
@@ -25,8 +24,8 @@ from dataloader.STB.dataset import Dataset as STBDataset
 
 from common.timer import Timer
 from common.logger import colorlogger
+from common.interNet import InterNet
 
-from common.model import get_model
 
 cfg.is_inference = False
 
@@ -52,16 +51,7 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        self.device = device
-        self.logger.info("Creating graph and optimizer...")
-        model = get_model(self.joint_num)
-        model = DataParallel(model).cuda()
-        
-        self.model = model.to(device)
-
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
-
-
+        self.dataset = cfg.dataset
         self.logger.info("Creating train dataset...")
         if self.dataset == 'InterHand2.6M':
             train_set = InterHand2M6Dataset(transforms.ToTensor(), "train")
@@ -75,6 +65,18 @@ class Worker(object):
         else:
             raise ValueError('Invalid dataset name')
         
+        joint_num = train_set.joint_num
+
+        self.device = device
+        self.logger.info("Creating graph and optimizer...")
+        model = InterNet(joint_num)
+        # model = DataParallel(model).cuda()
+        
+        self.model = model.to(device)
+
+        self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.lr)
+
+
         if cfg.fast_debug:
             train_batch_size = 2
             test_batch_size = 2
@@ -102,7 +104,7 @@ class Worker(object):
 
         self.logger = SummaryWriter(self.exp_dir)
 
-        self.best_val_epoch_mpjpe = float('inf')
+        self.best_val_epoch = float('inf')
         self.start_epoch = 0
         finetune = cfg.fine_tune
 
@@ -163,16 +165,13 @@ class Worker(object):
         
     def training(self, cur_epoch, total_epoch, split, fast_debug = False):
         self.model.train()
+        self.set_lr(cur_epoch)
         tbar = tqdm(self.train_loader)
         num_iter = len(self.train_loader)
 
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
         epoch_loss = []
-        epoch_mpjpe = []
-
-
-
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
             if fast_debug and iter > 2:
@@ -189,21 +188,22 @@ class Worker(object):
             self.optimizer.step()
 
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-            if self.comp_diffusion_loss:
-                loginfo += f'| L_jh: {joint_heatmap_loss.item():.4f}'
-            if self.comp_xyz_loss:
-                loginfo += f'| L_rrd: {rel_root_depth_loss.item():.4f}'
-            if self.comp_uv_loss:
-                loginfo += f'| L_ht: {hand_type_loss.item():.4f}'
+            loginfo += f'| L_jh: {joint_heatmap_loss.item():.4f}'
+            loginfo += f'| L_rrd: {rel_root_depth_loss.item():.4f}'
+            loginfo += f'| L_ht: {hand_type_loss.item():.4f}'
 
             tbar.set_description(loginfo)
 
-        self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
-        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
-        epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
+            iter_loss_value = round(loss.item(), 4)
+            epoch_loss.append(iter_loss_value)
+
+        epoch_loss_value = np.round(np.mean(epoch_loss), 4)
+        self.logger.add_scalar(f'{formatted_split} epoch MPJPE', epoch_loss_value, global_step=cur_epoch)
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {epoch_loss_value}'            
+        # epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
         print(epoch_info)
         self.write_loginfo_to_txt(epoch_info)
-        return epoch_mpjpe
+        return epoch_loss_value
     
     
     def validation(self, cur_epoch, total_epoch, split, fast_debug = False):
@@ -234,26 +234,28 @@ class Worker(object):
             loss = joint_heatmap_loss + rel_root_depth_loss + hand_type_loss 
 
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-            if self.comp_diffusion_loss:
-                loginfo += f'| L_jh: {joint_heatmap_loss.item():.4f}'
-            if self.comp_xyz_loss:
-                loginfo += f'| L_rrd: {rel_root_depth_loss.item():.4f}'
-            if self.comp_uv_loss:
-                loginfo += f'| L_ht: {hand_type_loss.item():.4f}'
+            loginfo += f'| L_jh: {joint_heatmap_loss.item():.4f}'
+            loginfo += f'| L_rrd: {rel_root_depth_loss.item():.4f}'
+            loginfo += f'| L_ht: {hand_type_loss.item():.4f}'
 
             tbar.set_description(loginfo)
 
+            iter_loss_value = round(loss.item(), 4)
+            epoch_loss.append(iter_loss_value)
 
-        self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
-        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
-
-        print(epoch_info)
+        epoch_loss_value = np.round(np.mean(epoch_loss), 4)
+        self.logger.add_scalar(f'{formatted_split} epoch MPJPE', epoch_loss_value, global_step=cur_epoch)
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {epoch_loss_value}'            
+        # epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
+        
         self.write_loginfo_to_txt(epoch_info)
         self.write_loginfo_to_txt('')
-        return epoch_mpjpe
+        print(epoch_info)
+        # print('')
+        return epoch_loss_value
     
 
-    def save_checkpoint(self, state, is_best, model_name='', ouput_weight_dir = ''):
+    def save_checkpoint(self, state, is_best, ouput_weight_dir = ''):
         """Saves checkpoint to disk"""
         os.makedirs(ouput_weight_dir, exist_ok=True)
         best_model_filepath = os.path.join(ouput_weight_dir, f'model_best.pth.tar')
@@ -296,20 +298,20 @@ class Worker(object):
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
             self.training(epoch, cfg.end_epoch, self.train_loader, 'training', fast_debug = fast_debug)
 
-            mpjpe = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+            epoch_loss = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
             checkpoint = {
                         'epoch': epoch + 1,
                         'state_dict': self.model.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
-                        'MPJPE': mpjpe,                
+                        'epoch_loss': epoch_loss,                
                         }
-            if mpjpe < self.best_val_epoch_mpjpe:
-                self.best_val_epoch_mpjpe = mpjpe
+            if epoch_loss < self.best_val_epoch:
+                self.best_val_epoch = epoch_loss
                 is_best = True
             else:
                 is_best = False
 
-            self.save_checkpoint(checkpoint, is_best, 'DF', self.exp_dir)
+            self.save_checkpoint(checkpoint, is_best, self.exp_dir)
             print('')
 
 
@@ -319,10 +321,10 @@ if __name__ == '__main__':
     parser.add_argument('--fast_debug', action='store_true', help='debug mode')
 
     args = parser.parse_args()
-    config.gpu_idx = args.gpuid
+    cfg.gpu_idx = args.gpuid
     fast_debug = args.fast_debug
     # fast_debug = True
-    worker = Worker(config.gpu_idx)
+    worker = Worker(cfg.gpu_idx)
     worker.forward(fast_debug)
 
     # gpu_info = get_gpu_utilization_as_string()
