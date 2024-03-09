@@ -37,7 +37,7 @@ class Dataset(torch.utils.data.Dataset):
         self.root_joint_idx = {'right': 21, 'left': 0}
         self.skeleton = load_skeleton(osp.join(self.root_path, 'skeleton.txt'), self.joint_num*2)
         
-        self.datalist = [];
+        self.datalist = []
         if self.mode == 'train':
             set = 'training'
         else:

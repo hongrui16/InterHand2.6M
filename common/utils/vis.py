@@ -91,13 +91,14 @@ def vis_keypoints(img, kps, score, skeleton, filename, score_thr=0.4, line_width
         if score[pid] > score_thr and pid != -1:
             draw.ellipse((kps[pid][0]-circle_rad, kps[pid][1]-circle_rad, kps[pid][0]+circle_rad, kps[pid][1]+circle_rad), fill=rgb_dict[parent_joint_name])
     
-    if save_path is None:
-        _img.save(osp.join(cfg.vis_dir, filename))
-    else:
-        _img.save(osp.join(save_path, filename))
+    # if save_path is None:
+    #     _img.save(osp.join(cfg.vis_dir, filename))
+    # else:
+        # _img.save(osp.join(save_path, filename))
+    _img.save(osp.join(save_path, filename))
 
 
-def vis_3d_keypoints(kps_3d, score, skeleton, filename, score_thr=0.4, line_width=3, circle_rad=3):
+def vis_3d_keypoints(kps_3d, score, skeleton, filename, score_thr=0.4, line_width=3, circle_rad=3, save_path=None):
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -122,5 +123,5 @@ def vis_3d_keypoints(kps_3d, score, skeleton, filename, score_thr=0.4, line_widt
     #plt.show()
     #cv2.waitKey(0)
     
-    fig.savefig(osp.join(cfg.vis_dir, filename), dpi=fig.dpi)
+    fig.savefig(osp.join(save_path, filename), dpi=fig.dpi)
 

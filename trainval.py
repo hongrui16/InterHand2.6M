@@ -16,6 +16,7 @@ import argparse
 
 from torch.nn.parallel.data_parallel import DataParallel
 import torch.backends.cudnn as cudnn
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 
 
 from config import config as cfg
@@ -86,8 +87,8 @@ class Worker(object):
             train_batch_size = cfg.train_batch_size
             test_batch_size = cfg.test_batch_size
                     
-        self.train_loader = DataLoader(train_set, batch_size=train_batch_size, shuffle=True, num_workers=cfg.num_workers)
-        self.val_loader = DataLoader(val_set, batch_size=test_batch_size, shuffle=False, num_workers=cfg.num_workers)
+        self.train_loader = DataLoader(train_set, batch_size=train_batch_size, shuffle=True, num_workers=cfg.num_workers, pin_memory=True, drop_last=True)
+        self.val_loader = DataLoader(val_set, batch_size=test_batch_size, shuffle=False, num_workers=cfg.num_workers, pin_memory=True)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
@@ -165,7 +166,7 @@ class Worker(object):
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
-    def training(self, cur_epoch, total_epoch, split, fast_debug = False):
+    def training(self, cur_epoch, total_epoch, split):
         self.model.train()
         self.set_lr(cur_epoch)
         tbar = tqdm(self.train_loader)
@@ -176,7 +177,7 @@ class Worker(object):
         epoch_loss = []
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
-            if fast_debug and iter > 2:
+            if cfg.fast_debug and idx > 2:
                 break     
             self.optimizer.zero_grad()
             joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
@@ -208,7 +209,7 @@ class Worker(object):
         return epoch_loss_value
     
     
-    def validation(self, cur_epoch, total_epoch, split, fast_debug = False):
+    def validation(self, cur_epoch, total_epoch, split):
         self.model.eval()
         tbar = tqdm(self.val_loader)
         num_iter = len(self.val_loader)
@@ -218,11 +219,8 @@ class Worker(object):
         epoch_loss = []
         epoch_mpjpe = []
 
-
-
-
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
-            if fast_debug and iter > 2:
+            if cfg.fast_debug and idx > 2:
                 break     
             self.optimizer.zero_grad()
             with torch.no_grad():
@@ -295,12 +293,12 @@ class Worker(object):
 
         return cur_lr
 
-    def forward(self, fast_debug = False):
+    def run(self):
         for epoch in range(self.start_epoch, cfg.end_epoch): 
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
-            self.training(epoch, cfg.end_epoch, self.train_loader, 'training', fast_debug = fast_debug)
+            self.training(epoch, cfg.end_epoch, self.train_loader, 'training')
 
-            epoch_loss = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+            epoch_loss = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation')
             checkpoint = {
                         'epoch': epoch + 1,
                         'network': self.model.state_dict(),
@@ -324,10 +322,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     cfg.gpu_idx = args.gpuid
-    fast_debug = args.fast_debug
+    cfg.fast_debug = args.fast_debug
     # fast_debug = True
     worker = Worker(cfg.gpu_idx)
-    worker.forward(fast_debug)
+    worker.run()
 
     # gpu_info = get_gpu_utilization_as_string()
     # print('gpu_info', gpu_info)

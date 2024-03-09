@@ -29,12 +29,12 @@ from common.utils.vis import vis_keypoints, vis_3d_keypoints
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):
         self.mode = mode # train, test, val
-        self.img_path = '../data/InterHand2.6M/images'
-        self.annot_path = '../data/InterHand2.6M/annotations'
+        self.img_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/images'
+        self.annot_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/annotations'
         if self.mode == 'val':
-            self.rootnet_output_path = '../data/InterHand2.6M/rootnet_output/rootnet_interhand2.6m_output_val.json'
+            self.rootnet_output_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/rootnet_output/rootnet_interhand2.6m_output_val.json'
         else:
-            self.rootnet_output_path = '../data/InterHand2.6M/rootnet_output/rootnet_interhand2.6m_output_test.json'
+            self.rootnet_output_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/rootnet_output/rootnet_interhand2.6m_output_test.json'
         self.transform = transform
         self.joint_num = 21 # single hand
         self.root_joint_idx = {'right': 20, 'left': 41}
@@ -146,7 +146,7 @@ class Dataset(torch.utils.data.Dataset):
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'hand_type_valid': hand_type_valid, 'inv_trans': inv_trans, 'capture': int(data['capture']), 'cam': int(data['cam']), 'frame': int(data['frame'])}
         return inputs, targets, meta_info
 
-    def evaluate(self, preds, mode = 'test'):
+    def evaluate(self, preds, mode = 'test', save_dir = None):
         assert mode in ('test', 'validation')
 
         print() 
@@ -233,8 +233,8 @@ class Dataset(torch.utils.data.Dataset):
                     acc_hand_cls += 1
                 hand_cls_cnt += 1
 
-            vis = False
-            if vis:
+            vis = True
+            if not save_dir is None and vis:
                 img_path = data['img_path']
                 cvimg = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
                 _img = cvimg[:,:,::-1].transpose(2,0,1)
@@ -244,12 +244,12 @@ class Dataset(torch.utils.data.Dataset):
                 cam = str(data['cam'])
                 frame = str(data['frame'])
                 filename = 'out_' + str(n) + '_' + gt_hand_type + '.jpg'
-                vis_keypoints(_img, vis_kps, vis_valid, self.skeleton, filename)
+                vis_keypoints(_img, vis_kps, vis_valid, self.skeleton, filename, save_path=save_dir)
 
-            vis = False
-            if vis:
+            vis = True
+            if not save_dir is None and vis:
                 filename = 'out_' + str(n) + '_3d.jpg'
-                vis_3d_keypoints(pred_joint_coord_cam, joint_valid, self.skeleton, filename)
+                vis_3d_keypoints(pred_joint_coord_cam, joint_valid, self.skeleton, filename, save_path=save_dir)
         
 
         if hand_cls_cnt > 0: print('Handedness accuracy: ' + str(acc_hand_cls / hand_cls_cnt))

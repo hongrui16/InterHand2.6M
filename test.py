@@ -28,7 +28,7 @@ from common.logger import colorlogger
 from common.interNet import InterNet
 
 
-cfg.is_inference = False
+cfg.is_inference = True
 
 # if platform.system() == 'Windows':
 #     print("This is Windows")
@@ -55,16 +55,17 @@ class Worker(object):
         
         self.dataset = cfg.dataset
         self.logger.info("Creating dataset...")
+        self.split = 'test'
         if self.dataset == 'InterHand2.6M':
-            self.val_set = InterHand2M6Dataset(transforms.ToTensor(), "val")
+            self.data_set = InterHand2M6Dataset(transforms.ToTensor(), self.split)
         elif self.dataset == 'RHD':
-            self.val_set = RHDDataset(transforms.ToTensor(), "val")
+            self.data_set = RHDDataset(transforms.ToTensor(), self.split)
         elif self.dataset == 'STB':
-            self.val_set = STBDataset(transforms.ToTensor(), "val")
+            self.data_set = STBDataset(transforms.ToTensor(), self.split)
         else:
             raise ValueError('Invalid dataset name')
         
-        joint_num = self.val_set.joint_num
+        joint_num = self.data_set.joint_num
 
         self.device = device
         self.logger.info("Creating graph and optimizer...")
@@ -78,7 +79,7 @@ class Worker(object):
         else:
             test_batch_size = cfg.test_batch_size
                     
-        self.val_loader = DataLoader(self.val_set, batch_size=test_batch_size, shuffle=False, num_workers=cfg.num_workers)
+        self.data_loader = DataLoader(self.data_set, batch_size=test_batch_size, shuffle=False, num_workers=cfg.num_workers, pin_memory=True)
         
         save_log_dir = cfg.infer_resume_weight_path[:cfg.infer_resume_weight_path.find(cfg.infer_resume_weight_path.split('/')[-1])]
         log_dir = sorted(glob.glob(os.path.join(save_log_dir, 'infer_*')), key=lambda x: int(x.split('_')[-1]))
@@ -88,6 +89,7 @@ class Worker(object):
         self.save_img = True
         if self.save_img:
             self.img_save_dir = os.path.join(self.exp_dir, 'img')
+
         if self.save_img:
             os.makedirs(self.img_save_dir, exist_ok=True)
 
@@ -115,28 +117,39 @@ class Worker(object):
 
 
     
-    def test(self, split = 'test', fast_debug = False):
+    def test(self, split = 'test'):
         self.model.eval()
-        tbar = tqdm(self.val_loader)
-        num_iter = len(self.val_loader)
+        tbar = tqdm(self.data_loader)
+        num_iter = len(self.data_loader)
 
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
 
+        preds = {'joint_coord': [], 'rel_root_depth': [], 'hand_type': [], 'inv_trans': []}
+
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
-            if fast_debug and iter > 2:
+            if cfg.fast_debug and idx > 2:
                 break     
             with torch.no_grad():
 
                 joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
 
-                preds = self.model.compute_coordinates(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
-                self.val_set.evaluate(preds)
+                out = self.model.compute_coordinates(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
+                joint_coord_out = out['joint_coord'].cpu().numpy()
+                rel_root_depth_out = out['rel_root_depth'].cpu().numpy()
+                hand_type_out = out['hand_type'].cpu().numpy()
+                inv_trans = out['inv_trans'].cpu().numpy()
 
-            loginfo = f'{formatted_split} Iter: {idx:05d}/{num_iter:05d}'
+                preds['joint_coord'].append(joint_coord_out)
+                preds['rel_root_depth'].append(rel_root_depth_out)
+                preds['hand_type'].append(hand_type_out)
+                preds['inv_trans'].append(inv_trans)
 
-            tbar.set_description(loginfo)
+                loginfo = f'{formatted_split} Iter: {idx:05d}/{num_iter:05d}'
 
+                tbar.set_description(loginfo)
+
+        self.data_set.evaluate(preds, save_dir = self.img_save_dir)
         
         # self.write_loginfo_to_txt(epoch_info)
         # self.write_loginfo_to_txt('')
@@ -153,10 +166,6 @@ class Worker(object):
         loss_file.close()# 
     
 
-    def forward(self, fast_debug = False):
-        epoch_loss = self.test(fast_debug = fast_debug)
-        
-        print('')
 
 
 if __name__ == '__main__':
@@ -166,10 +175,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     cfg.gpu_idx = args.gpuid
-    fast_debug = args.fast_debug
+    cfg.fast_debug = args.fast_debug
     # fast_debug = True
     worker = Worker(cfg.gpu_idx)
-    worker.forward(fast_debug)
+    worker.test()
 
     # gpu_info = get_gpu_utilization_as_string()
     # print('gpu_info', gpu_info)
