@@ -29,12 +29,16 @@ from common.utils.vis import vis_keypoints, vis_3d_keypoints
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):
         self.mode = mode # train, test, val
-        self.img_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/images'
-        self.annot_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/annotations'
+        self.dataset_root_dir = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/'
+        self.img_path = f'{self.dataset_root_dir}/images'
+        self.annot_path =  f'{self.dataset_root_dir}/annotations'
         if self.mode == 'val':
-            self.rootnet_output_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/rootnet_output/rootnet_interhand2.6m_output_val.json'
+            self.rootnet_output_path =  f'{self.dataset_root_dir}/rootnet_output/rootnet_interhand2.6m_output_val.json'
         else:
-            self.rootnet_output_path = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/rootnet_output/rootnet_interhand2.6m_output_test.json'
+            self.rootnet_output_path =  f'{self.dataset_root_dir}/rootnet_output/rootnet_interhand2.6m_output_test.json'
+        self.rootnet_output_dir =  f'{self.dataset_root_dir}/rootnet_output'
+        os.makedirs(self.rootnet_output_dir, exist_ok=True)
+
         self.transform = transform
         self.joint_num = 21 # single hand
         self.root_joint_idx = {'right': 20, 'left': 41}
@@ -182,7 +186,7 @@ class Dataset(torch.utils.data.Dataset):
             pred_joint_coord_img[:,0] = pred_joint_coord_img[:,0]/cfg.output_hm_shape[2]*cfg.input_img_shape[1]
             pred_joint_coord_img[:,1] = pred_joint_coord_img[:,1]/cfg.output_hm_shape[1]*cfg.input_img_shape[0]
             for j in range(self.joint_num*2):
-                pred_joint_coord_img[j,:2] = trans_point2d(pred_joint_coord_img[j,:2],inv_trans[n])
+                pred_joint_coord_img[j,:2] = trans_point2d(pred_joint_coord_img[j,:2], inv_trans[n])
             # restore depth to original camera space
             pred_joint_coord_img[:,2] = (pred_joint_coord_img[:,2]/cfg.output_hm_shape[0] * 2 - 1) * (cfg.bbox_3d_size/2)
  

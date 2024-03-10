@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from PIL import Image, ImageDraw
 
-from config.config import cfg
+from config import config as cfg
 
 
 def get_keypoint_rgb(skeleton):

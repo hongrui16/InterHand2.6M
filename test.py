@@ -44,7 +44,7 @@ class Worker(object):
         if cuda_valid:
             gpu_index = gpu_index  # # Here set the index of the GPU you want to use
             print(f"CUDA is available, using GPU {gpu_index}")
-            if cfg.gpu_idx is None:
+            if gpu_idx is None:
                 device = torch.device(f"cuda")
             else:
                 device = torch.device(f"cuda:{gpu_index}")
@@ -54,7 +54,6 @@ class Worker(object):
             device = torch.device("cpu")
         
         self.dataset = cfg.dataset
-        self.logger.info("Creating dataset...")
         self.split = 'test'
         if self.dataset == 'InterHand2.6M':
             self.data_set = InterHand2M6Dataset(transforms.ToTensor(), self.split)
@@ -128,7 +127,7 @@ class Worker(object):
         preds = {'joint_coord': [], 'rel_root_depth': [], 'hand_type': [], 'inv_trans': []}
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
-            if cfg.fast_debug and idx > 2:
+            if cfg.fast_debug and idx > 1:
                 break     
             with torch.no_grad():
 
@@ -149,6 +148,7 @@ class Worker(object):
 
                 tbar.set_description(loginfo)
 
+        preds = {k: np.concatenate(v) for k,v in preds.items()}
         self.data_set.evaluate(preds, save_dir = self.img_save_dir)
         
         # self.write_loginfo_to_txt(epoch_info)
@@ -170,14 +170,15 @@ class Worker(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='parameters')
-    parser.add_argument('--gpuid', type=int, default=0, help='GPU index')
-    parser.add_argument('--fast_debug', action='store_true', help='debug mode')
+    parser.add_argument('--gpuid', type=int, default=None, help='GPU index')
+    # parser.add_argument('--fast_debug', action='store_true', help='debug mode')
 
     args = parser.parse_args()
-    cfg.gpu_idx = args.gpuid
-    cfg.fast_debug = args.fast_debug
+    # cfg.fast_debug = args.fast_debug
+    cfg.fast_debug = True
+    gpu_idx = args.gpuid
     # fast_debug = True
-    worker = Worker(cfg.gpu_idx)
+    worker = Worker(gpu_idx)
     worker.test()
 
     # gpu_info = get_gpu_utilization_as_string()

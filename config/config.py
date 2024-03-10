@@ -38,8 +38,6 @@ trans_test = 'rootnet' # gt, rootnet
 num_workers = 40
 ## others
 
-gpu_idx = None
-continue_train = False
 save_log_dir = './log'
 
 is_inference = False

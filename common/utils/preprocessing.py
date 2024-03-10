@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 import random
 import math
-from config.config import cfg
+from config import config as cfg
 
 def load_img(path, order='RGB'):
     

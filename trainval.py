@@ -321,10 +321,10 @@ if __name__ == '__main__':
     parser.add_argument('--fast_debug', action='store_true', help='debug mode')
 
     args = parser.parse_args()
-    cfg.gpu_idx = args.gpuid
+    gpu_idx = args.gpuid
     cfg.fast_debug = args.fast_debug
     # fast_debug = True
-    worker = Worker(cfg.gpu_idx)
+    worker = Worker(gpu_idx)
     worker.run()
 
     # gpu_info = get_gpu_utilization_as_string()
