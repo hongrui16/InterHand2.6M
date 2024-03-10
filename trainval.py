@@ -180,7 +180,14 @@ class Worker(object):
             if cfg.fast_debug and idx > 2:
                 break     
             self.optimizer.zero_grad()
-            joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
+            img = inputs['img'].to(self.device)
+            
+            for key, value in meta_info.items():
+                meta_info[key] = value.to(self.device)
+            for key, value in targets.items():
+                targets[key] = value.to(self.device)
+                
+            joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(img)
             loss = self.model.compute_loss(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
 
             joint_heatmap_loss = loss['joint_heatmap']
@@ -224,8 +231,15 @@ class Worker(object):
                 break     
             self.optimizer.zero_grad()
             with torch.no_grad():
-
-                joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
+                img = inputs['img'].to(self.device)
+            
+                for key, value in meta_info.items():
+                    meta_info[key] = value.to(self.device)
+                for key, value in targets.items():
+                    targets[key] = value.to(self.device)
+                    
+                joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(img)
+                
                 loss = self.model.compute_loss(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
 
             joint_heatmap_loss = loss['joint_heatmap']
@@ -301,7 +315,7 @@ class Worker(object):
             epoch_loss = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation')
             checkpoint = {
                         'epoch': epoch + 1,
-                        'network': self.model.state_dict(),
+                        'state_dict': self.model.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
                         'epoch_loss': epoch_loss,                
                         }

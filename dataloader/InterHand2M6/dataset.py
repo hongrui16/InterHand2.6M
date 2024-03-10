@@ -29,7 +29,7 @@ from common.utils.vis import vis_keypoints, vis_3d_keypoints
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):
         self.mode = mode # train, test, val
-        self.dataset_root_dir = '/scratch/rhong5/dataset/InterHand/InterHand2.6M/'
+        self.dataset_root_dir = '/scratch/rhong5/dataset/InterHand/InterHand2.6M'
         self.img_path = f'{self.dataset_root_dir}/images'
         self.annot_path =  f'{self.dataset_root_dir}/annotations'
         if self.mode == 'val':
@@ -165,14 +165,15 @@ class Dataset(torch.utils.data.Dataset):
             preds_hand_type = preds_hand_type.cpu().numpy()
             inv_trans = inv_trans.cpu().numpy()
 
-        assert len(gts) == len(preds_joint_coord)
-        sample_num = len(gts)
+        # assert len(gts) == len(preds_joint_coord)
+        # sample_num = len(gts)
         
         mpjpe_sh = [[] for _ in range(self.joint_num*2)]
         mpjpe_ih = [[] for _ in range(self.joint_num*2)]
         mrrpe = []
         acc_hand_cls = 0
         hand_cls_cnt = 0
+        sample_num = preds_joint_coord.shape[0]
         for n in range(sample_num):
             data = gts[n]
             bbox, cam_param, joint, gt_hand_type, hand_type_valid = data['bbox'], data['cam_param'], data['joint'], data['hand_type'], data['hand_type_valid']
@@ -262,11 +263,16 @@ class Dataset(torch.utils.data.Dataset):
  
         tot_err = []
         eval_summary = 'MPJPE for each joint: \n'
-        for j in range(self.joint_num*2):
-            tot_err_j = np.mean(np.concatenate((np.stack(mpjpe_sh[j]), np.stack(mpjpe_ih[j]))))
-            joint_name = self.skeleton[j]['name']
-            eval_summary += (joint_name + ': %.2f, ' % tot_err_j)
-            tot_err.append(tot_err_j)
+        for j in range(self.joint_num*2):            
+            if len(mpjpe_sh[j]) > 0 and len(mpjpe_ih[j]) > 0:
+                tot_err_j = np.mean(np.concatenate((np.stack(mpjpe_sh[j]), np.stack(mpjpe_ih[j]))))
+                joint_name = self.skeleton[j]['name']
+                eval_summary += (joint_name + ': %.2f, ' % tot_err_j)
+                tot_err.append(tot_err_j)
+            else:
+                print("No data available for stacking.")
+
+            
 
         # if mode == 'validation':
         #     return np.mean(tot_err)
@@ -277,20 +283,28 @@ class Dataset(torch.utils.data.Dataset):
 
         eval_summary = 'MPJPE for each joint: \n'
         for j in range(self.joint_num*2):
-            mpjpe_sh[j] = np.mean(np.stack(mpjpe_sh[j]))
-            joint_name = self.skeleton[j]['name']
-            eval_summary += (joint_name + ': %.2f, ' % mpjpe_sh[j])
+            if len(mpjpe_sh[j]) > 0:
+                mpjpe_sh[j] = np.mean(np.stack(mpjpe_sh[j]))
+                joint_name = self.skeleton[j]['name']
+                eval_summary += (joint_name + ': %.2f, ' % mpjpe_sh[j])
         print(eval_summary)
-        print('MPJPE for single hand sequences: %.2f' % (np.mean(mpjpe_sh)))
+        # if len(mpjpe_sh) > 0:
+        #     print('MPJPE for single hand sequences: %.2f' % (np.mean(mpjpe_sh)))
+        # else:
+        #     print('MPJPE for single hand sequences: Not available')
         print()
 
         eval_summary = 'MPJPE for each joint: \n'
         for j in range(self.joint_num*2):
-            mpjpe_ih[j] = np.mean(np.stack(mpjpe_ih[j]))
-            joint_name = self.skeleton[j]['name']
-            eval_summary += (joint_name + ': %.2f, ' % mpjpe_ih[j])
+            if len(mpjpe_ih[j]) > 0:
+                mpjpe_ih[j] = np.mean(np.stack(mpjpe_ih[j]))
+                joint_name = self.skeleton[j]['name']
+                eval_summary += (joint_name + ': %.2f, ' % mpjpe_ih[j])
         print(eval_summary)
-        print('MPJPE for interacting hand sequences: %.2f' % (np.mean(mpjpe_ih)))
+        # if len(mpjpe_ih) > 0:
+        #     print('MPJPE for single hand sequences: %.2f' % (np.mean(mpjpe_ih)))
+        # else:
+        #     print('MPJPE for single hand sequences: Not available')
 
 
 

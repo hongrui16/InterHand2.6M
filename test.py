@@ -4,6 +4,9 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+import torch.nn as nn
+from collections import OrderedDict
+
 import numpy as np
 import os
 import glob
@@ -67,14 +70,14 @@ class Worker(object):
         joint_num = self.data_set.joint_num
 
         self.device = device
-        self.logger.info("Creating graph and optimizer...")
-        model = InterNet(joint_num)
+        # self.logger.info("Creating graph and optimizer...")
+        model = InterNet(joint_num, device= self.device)
         # model = DataParallel(model).cuda()
         
         self.model = model.to(device)
 
         if cfg.fast_debug:
-            test_batch_size = 2
+            test_batch_size = 4
         else:
             test_batch_size = cfg.test_batch_size
                     
@@ -96,7 +99,7 @@ class Worker(object):
         if os.path.exists(self.txtfile):
             os.remove(self.txtfile)
 
-        self.logger = SummaryWriter(self.exp_dir)
+        # self.logger = SummaryWriter(self.exp_dir)
 
         
         if not os.path.isfile(cfg.infer_resume_weight_path):
@@ -105,7 +108,25 @@ class Worker(object):
         # model.load_state_dict(checkpoint["state_dict"])
         # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
         # checkpoint = torch.load("checkpoint.pth")
-        self.model.load_state_dict(checkpoint['network'])
+        # Remove 'module.' prefix
+        if 'Pre-trained_weights' in cfg.infer_resume_weight_path:
+            new_state_dict = OrderedDict()
+            for key, value in checkpoint['network'].items():
+                key = key[7:]  # remove `module.` prefix
+                # new_state_dict[name] = value
+                parts = key.split(".")
+                # Assuming the insertion needs to happen after 'resnet'
+                if "resnet" in parts:
+                    # index = parts.index("resnet") + 1
+                    # parts.insert(index, "model")
+                    new_key = ".".join(parts)
+                    new_state_dict[new_key] = value
+                else:
+                    new_state_dict[key] = value
+            # Load the adjusted state dict
+            self.model.load_state_dict(new_state_dict)
+        else:
+            self.model.load_state_dict(checkpoint['state_dict'])
         
         # if cuda_valid:
         #     self.model.module.load_state_dict(checkpoint['state_dict'])
@@ -130,8 +151,17 @@ class Worker(object):
             if cfg.fast_debug and idx > 1:
                 break     
             with torch.no_grad():
+                # inputs = {'img': img}
+                # targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
+                # meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'hand_type_valid': hand_type_valid, 'inv_trans': inv_trans, 'capture': int(data['capture']), 'cam': int(data['cam']), 'frame': int(data['frame'])}
+                img = inputs['img'].to(self.device)
 
-                joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(inputs)
+                for key, value in meta_info.items():
+                    meta_info[key] = value.to(self.device)
+                for key, value in targets.items():
+                    targets[key] = value.to(self.device)
+                # print('img', img.shape)
+                joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(img)
 
                 out = self.model.compute_coordinates(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
                 joint_coord_out = out['joint_coord'].cpu().numpy()

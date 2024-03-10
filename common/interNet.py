@@ -22,12 +22,12 @@ from config import config as cfg
 class InterNet(nn.Module):
     def __init__(self, joint_num = None, device = 'cpu'):
         super(InterNet, self).__init__()
-
+        self.device = device
         if joint_num is None:
             joint_num = cfg.joint_num
         
-        backbone_net = BackboneNet()
-        pose_net = PoseNet(joint_num)
+        backbone_net = BackboneNet(self.device)
+        pose_net = PoseNet(joint_num, device = self.device)
 
         pose_net.apply(init_weights)
 
@@ -52,8 +52,7 @@ class InterNet(nn.Module):
         heatmap = heatmap * 255
         return heatmap
    
-    def forward(self, inputs):
-        input_img = inputs['img']
+    def forward(self, input_img):
         batch_size = input_img.shape[0]
         img_feat = self.backbone_net(input_img)
         joint_heatmap_out, rel_root_depth_out, hand_type_out = self.pose_net(img_feat)
@@ -69,6 +68,8 @@ class InterNet(nn.Module):
         loss['joint_heatmap'] = self.joint_heatmap_loss(joint_heatmap_pred, target_joint_heatmap, meta_info['joint_valid'])
         loss['rel_root_depth'] = self.rel_root_depth_loss(rel_root_depth_pred, targets['rel_root_depth'], meta_info['root_valid'])
         loss['hand_type'] = self.hand_type_loss(hand_type_pred, targets['hand_type'], meta_info['hand_type_valid'])
+
+    
         return loss
     
     def compute_coordinates(self, joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info):

@@ -19,17 +19,20 @@ from common.nets.resnet import ResNetBackbone
 import math
 
 class BackboneNet(nn.Module):
-    def __init__(self):
+    def __init__(self, device = 'cpu'):
         super(BackboneNet, self).__init__()
-        self.resnet = ResNetBackbone(cfg.resnet_type, pretrained=True)
+        self.device = device
+        self.resnet = ResNetBackbone(cfg.resnet_type)
+        self.resnet.init_weights()
     
     def forward(self, img):
         img_feat = self.resnet(img)
         return img_feat
 
 class PoseNet(nn.Module):
-    def __init__(self, joint_num):
+    def __init__(self, joint_num, device = 'cpu'):
         super(PoseNet, self).__init__()
+        self.device = device
         self.joint_num = joint_num # single hand
         
         self.joint_deconv_1 = make_deconv_layers([2048,256,256,256])
@@ -42,7 +45,7 @@ class PoseNet(nn.Module):
 
     def soft_argmax_1d(self, heatmap1d):
         heatmap1d = F.softmax(heatmap1d, 1)
-        accu = heatmap1d * torch.arange(cfg.output_root_hm_shape).float().cuda()[None,:]
+        accu = heatmap1d * torch.arange(cfg.output_root_hm_shape).float().to(self.device)[None,:]
         coord = accu.sum(dim=1)
         return coord
 
@@ -67,14 +70,14 @@ if __name__ == '__main__':
     else:
         device = torch.device('cpu')
     img = torch.rand(1,3,256,256).to(device)
-    backbone_net = BackboneNet().to(device)
+    backbone_net = BackboneNet(device=device).to(device)
     img_feat = backbone_net(img)
-    print(img_feat.shape) ### torch.Size([1, 2048])
+    print(img_feat.shape) ### torch.Size([1, 2048, 8, 8])
 
     img_feat = torch.rand(1,2048,8,8).to(device)
     
-    
-    pose_net = PoseNet(21).to(device)
+    print('------------------')
+    pose_net = PoseNet(21, device=device).to(device)
     joint_heatmap3d, root_depth, hand_type = pose_net(img_feat)
     print(joint_heatmap3d.shape, root_depth.shape, hand_type.shape) ### torch.Size([1, 42, 64, 64, 64]) torch.Size([1, 1]) torch.Size([1, 2])
     print(joint_heatmap3d[0,0,0,0,0])

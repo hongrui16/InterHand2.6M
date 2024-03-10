@@ -46,6 +46,6 @@ fast_debug = False
 resume_weight_path = None
 fine_tune = False
 
-infer_resume_weight_path = 'weights/InterHand2.6M/snapshot_20.pth.tar'
+infer_resume_weight_path = 'Pre-trained_weights/InterHand2.6M/snapshot_20.pth.tar'
 
 vis_dir = None
