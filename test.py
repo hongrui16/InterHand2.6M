@@ -148,7 +148,7 @@ class Worker(object):
         preds = {'joint_coord': [], 'rel_root_depth': [], 'hand_type': [], 'inv_trans': []}
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
-            if cfg.fast_debug and idx > 1:
+            if cfg.fast_debug and idx > 2:
                 break     
             with torch.no_grad():
                 # inputs = {'img': img}

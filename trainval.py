@@ -17,6 +17,7 @@ import argparse
 from torch.nn.parallel.data_parallel import DataParallel
 import torch.backends.cudnn as cudnn
 from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
+from collections import OrderedDict
 
 
 from config import config as cfg
@@ -27,7 +28,6 @@ from dataloader.STB.dataset import Dataset as STBDataset
 from common.timer import Timer
 from common.logger import colorlogger
 from common.interNet import InterNet
-
 
 cfg.is_inference = False
 
@@ -120,8 +120,26 @@ class Worker(object):
             # checkpoint = torch.load("checkpoint.pth")
 
             # Update the model's state dict
-            new_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in self.model.state_dict()}
-            self.model.load_state_dict(new_state_dict, strict=False)
+            
+            if 'Pre-trained_weights' in cfg.infer_resume_weight_path:
+                new_state_dict = OrderedDict()
+                for key, value in checkpoint['network'].items():
+                    key = key[7:]  # remove `module.` prefix
+                    # new_state_dict[name] = value
+                    parts = key.split(".")
+                    # Assuming the insertion needs to happen after 'resnet'
+                    if "resnet" in parts:
+                        # index = parts.index("resnet") + 1
+                        # parts.insert(index, "model")
+                        new_key = ".".join(parts)
+                        new_state_dict[new_key] = value
+                    else:
+                        new_state_dict[key] = value
+                # Load the adjusted state dict
+                self.model.load_state_dict(new_state_dict, strict=False)
+            else:
+                new_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in self.model.state_dict()}
+                self.model.load_state_dict(new_state_dict, strict=False)
 
            
             # if cuda_valid:
