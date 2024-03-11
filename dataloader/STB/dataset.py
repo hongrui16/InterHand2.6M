@@ -121,7 +121,7 @@ class Dataset(torch.utils.data.Dataset):
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
         return inputs, targets, meta_info
 
-    def evaluate(self, preds):
+    def evaluate(self, preds, save_dir = None):
 
         print() 
         print('Evaluation start...')
@@ -134,11 +134,13 @@ class Dataset(torch.utils.data.Dataset):
             preds_hand_type = preds_hand_type.cpu().numpy()
             inv_trans = inv_trans.cpu().numpy()
 
-        assert len(gts) == len(preds_joint_coord)
-        sample_num = len(gts)
+        # assert len(gts) == len(preds_joint_coord)
+        # sample_num = len(gts)
         
         mpjpe = [[] for _ in range(self.joint_num)] # treat right and left hand identical
         acc_hand_cls = 0
+        sample_num = preds_joint_coord.shape[0]
+
         for n in range(sample_num):
             data = gts[n]
             bbox, cam_param, joint, gt_hand_type = data['bbox'], data['cam_param'], data['joint'], data['hand_type']
@@ -180,8 +182,8 @@ class Dataset(torch.utils.data.Dataset):
             elif gt_hand_type == 'left' and preds_hand_type[n][0] < 0.5 and preds_hand_type[n][1] > 0.5:
                 acc_hand_cls += 1
 
-            vis = False
-            if vis:
+            vis = True
+            if not save_dir is None and vis:
                 img_path = data['img_path']
                 cvimg = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
                 _img = cvimg[:,:,::-1].transpose(2,0,1)
@@ -190,8 +192,8 @@ class Dataset(torch.utils.data.Dataset):
                 filename = 'out_' + str(n) + '.jpg'
                 vis_keypoints(_img, vis_kps, vis_valid, self.skeleton[:self.joint_num], filename)
 
-            vis = False
-            if vis:
+            vis = True
+            if not save_dir is None and vis:
                 filename = 'out_' + str(n) + '_3d.png'
                 vis_3d_keypoints(pred_joint_coord_cam, joint_valid, self.skeleton[:self.joint_num], filename)
 
@@ -199,9 +201,10 @@ class Dataset(torch.utils.data.Dataset):
 
         eval_summary = 'MPJPE for each joint: \n'
         for j in range(self.joint_num):
-            mpjpe[j] = np.mean(np.stack(mpjpe[j]))
-            joint_name = self.skeleton[j]['name']
-            eval_summary += (joint_name + ': %.2f, ' % mpjpe[j])
+            if len(mpjpe[j]) > 0:
+                mpjpe[j] = np.mean(np.stack(mpjpe[j]))
+                joint_name = self.skeleton[j]['name']
+                eval_summary += (joint_name + ': %.2f, ' % mpjpe[j])
         print(eval_summary)
         print('MPJPE: %.2f' % (np.mean(mpjpe)))
 

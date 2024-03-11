@@ -45,9 +45,13 @@ class InterNet(nn.Module):
         y = torch.arange(cfg.output_hm_shape[1])
         z = torch.arange(cfg.output_hm_shape[0])
         zz,yy,xx = torch.meshgrid(z,y,x)
-        xx = xx[None,None,:,:,:].cuda().float(); yy = yy[None,None,:,:,:].cuda().float(); zz = zz[None,None,:,:,:].cuda().float();
+        xx = xx[None,None,:,:,:].to(self.device).float()
+        yy = yy[None,None,:,:,:].to(self.device).float()
+        zz = zz[None,None,:,:,:].to(self.device).float()
         
-        x = joint_coord[:,:,0,None,None,None]; y = joint_coord[:,:,1,None,None,None]; z = joint_coord[:,:,2,None,None,None];
+        x = joint_coord[:,:,0,None,None,None]
+        y = joint_coord[:,:,1,None,None,None]
+        z = joint_coord[:,:,2,None,None,None]
         heatmap = torch.exp(-(((xx-x)/cfg.sigma)**2)/2 -(((yy-y)/cfg.sigma)**2)/2 - (((zz-z)/cfg.sigma)**2)/2)
         heatmap = heatmap * 255
         return heatmap

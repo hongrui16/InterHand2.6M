@@ -27,9 +27,10 @@ from common.utils.vis import vis_keypoints, vis_3d_keypoints
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):
+        # assert mode in ['training', 'evaluation']
         self.mode = mode
-        self.root_path = '../data/RHD/data'
-        self.rootnet_output_path = '../data/RHD/rootnet_output/rootnet_rhd_output.json'
+        self.root_path = '/scratch/rhong5/dataset/RHD'
+        self.rootnet_output_path = f'{self.root_path}/rootnet_output/rootnet_rhd_output.json'
         self.original_img_shape = (320, 320) # height, width
         self.transform = transform
         self.joint_num = 21 # single hand
@@ -77,7 +78,10 @@ class Dataset(torch.utils.data.Dataset):
             joint_img_dh[self.joint_type[hand_type]] = joint_img
             joint_cam_dh[self.joint_type[hand_type]] = joint_cam
             joint_valid_dh[self.joint_type[hand_type]] = joint_valid
-            joint_img = joint_img_dh; joint_cam = joint_cam_dh; joint_valid = joint_valid_dh;
+            
+            joint_img = joint_img_dh
+            joint_cam = joint_cam_dh
+            joint_valid = joint_valid_dh
 
             if self.mode == 'test' and cfg.trans_test == 'rootnet':
                 bbox = np.array(rootnet_result[str(aid)]['bbox'],dtype=np.float32)
@@ -87,9 +91,19 @@ class Dataset(torch.utils.data.Dataset):
                 bbox = process_bbox(bbox, (img_height, img_width))
                 abs_depth = joint_cam[self.root_joint_idx[hand_type],2] # single hand abs depth
 
-            cam_param = {'focal': focal, 'princpt': princpt}
-            joint = {'cam_coord': joint_cam, 'img_coord': joint_img, 'valid': joint_valid}
-            data = {'img_path': img_path, 'bbox': bbox, 'cam_param': cam_param, 'joint': joint, 'hand_type': hand_type, 'abs_depth': abs_depth}
+            cam_param = {'focal': focal, 
+                         'princpt': princpt}
+            
+            joint = {'cam_coord': joint_cam, 
+                     'img_coord': joint_img, 
+                     'valid': joint_valid}
+
+            data = {'img_path': img_path, 
+                    'bbox': bbox, 
+                    'cam_param': cam_param, 
+                    'joint': joint, 
+                    'hand_type': hand_type, 
+                    'abs_depth': abs_depth}
             self.datalist.append(data)
      
     def handtype_str2array(self, hand_type):
@@ -125,8 +139,7 @@ class Dataset(torch.utils.data.Dataset):
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
         return inputs, targets, meta_info
 
-    def evaluate(self, preds):
-
+    def evaluate(self, preds, save_dir = None):
         print() 
         print('Evaluation start...')
 
@@ -139,8 +152,9 @@ class Dataset(torch.utils.data.Dataset):
             preds_hand_type = preds_hand_type.cpu().numpy()
             inv_trans = inv_trans.cpu().numpy()
 
-        assert len(gts) == len(preds_joint_coord)
-        sample_num = len(gts)
+        # assert len(gts) == len(preds_joint_coord)
+        # sample_num = len(gts)
+        sample_num = preds_joint_coord.shape[0]
         
         mpjpe = [[] for _ in range(self.joint_num)] # treat right and left hand identical
         acc_hand_cls = 0
@@ -185,28 +199,31 @@ class Dataset(torch.utils.data.Dataset):
             elif gt_hand_type == 'left' and preds_hand_type[n][0] < 0.5 and preds_hand_type[n][1] > 0.5:
                 acc_hand_cls += 1
 
-            vis = False
-            if vis:
+            vis = True
+            if not save_dir is None and vis:
                 img_path = data['img_path']
                 cvimg = cv2.imread(img_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
                 _img = cvimg[:,:,::-1].transpose(2,0,1)
                 vis_kps = pred_joint_coord_img.copy()
                 vis_valid = joint_valid.copy()
                 filename = 'out_' + str(n) + '.jpg'
-                vis_keypoints(_img, vis_kps, vis_valid, self.skeleton[:self.joint_num], filename)
+                vis_keypoints(_img, vis_kps, vis_valid, self.skeleton[:self.joint_num], filename, save_path = save_dir)
 
-            vis = False
-            if vis:
+            vis = True
+            if not save_dir is None and vis:
                 filename = 'out_' + str(n) + '_3d.png'
-                vis_3d_keypoints(pred_joint_coord_cam, joint_valid, self.skeleton[:self.joint_num], filename)
+                vis_3d_keypoints(pred_joint_coord_cam, joint_valid, self.skeleton[:self.joint_num], filename, save_path = save_dir)
+
+            
 
         print('Handedness accuracy: ' + str(acc_hand_cls / sample_num))
 
         eval_summary = 'MPJPE for each joint: \n'
         for j in range(self.joint_num):
-            mpjpe[j] = np.mean(np.stack(mpjpe[j]))
-            joint_name = self.skeleton[j]['name']
-            eval_summary += (joint_name + ': %.2f, ' % mpjpe[j])
+            if len(mpjpe[j]) > 0:
+                mpjpe[j] = np.mean(np.stack(mpjpe[j]))
+                joint_name = self.skeleton[j]['name']
+                eval_summary += (joint_name + ': %.2f, ' % mpjpe[j])
         print(eval_summary)
         print('MPJPE: %.2f' % (np.mean(mpjpe)))
 

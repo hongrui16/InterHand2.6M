@@ -28,6 +28,7 @@ from common.utils.vis import vis_keypoints, vis_3d_keypoints
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):
+        assert mode in ('train', 'test', 'val')
         self.mode = mode # train, test, val
         self.dataset_root_dir = '/scratch/rhong5/dataset/InterHand/InterHand2.6M'
         self.img_path = f'{self.dataset_root_dir}/images'
@@ -79,8 +80,10 @@ class Dataset(torch.utils.data.Dataset):
             frame_idx = img['frame_idx']
             img_path = osp.join(self.img_path, self.mode, img['file_name'])
             
-            campos, camrot = np.array(cameras[str(capture_id)]['campos'][str(cam)], dtype=np.float32), np.array(cameras[str(capture_id)]['camrot'][str(cam)], dtype=np.float32)
-            focal, princpt = np.array(cameras[str(capture_id)]['focal'][str(cam)], dtype=np.float32), np.array(cameras[str(capture_id)]['princpt'][str(cam)], dtype=np.float32)
+            campos = np.array(cameras[str(capture_id)]['campos'][str(cam)], dtype=np.float32)
+            camrot = np.array(cameras[str(capture_id)]['camrot'][str(cam)], dtype=np.float32)
+            focal = np.array(cameras[str(capture_id)]['focal'][str(cam)], dtype=np.float32), 
+            princpt = np.array(cameras[str(capture_id)]['princpt'][str(cam)], dtype=np.float32)
             joint_world = np.array(joints[str(capture_id)][str(frame_idx)]['world_coord'], dtype=np.float32)
             joint_cam = world2cam(joint_world.transpose(1,0), camrot, campos.reshape(3,1)).transpose(1,0)
             joint_img = cam2pixel(joint_cam, focal, princpt)[:,:2]
@@ -101,9 +104,25 @@ class Dataset(torch.utils.data.Dataset):
                 bbox = process_bbox(bbox, (img_height, img_width))
                 abs_depth = {'right': joint_cam[self.root_joint_idx['right'],2], 'left': joint_cam[self.root_joint_idx['left'],2]}
 
-            cam_param = {'focal': focal, 'princpt': princpt}
-            joint = {'cam_coord': joint_cam, 'img_coord': joint_img, 'valid': joint_valid}
-            data = {'img_path': img_path, 'seq_name': seq_name, 'cam_param': cam_param, 'bbox': bbox, 'joint': joint, 'hand_type': hand_type, 'hand_type_valid': hand_type_valid, 'abs_depth': abs_depth, 'file_name': img['file_name'], 'capture': capture_id, 'cam': cam, 'frame': frame_idx}
+            cam_param = {'focal': focal, 
+                         'princpt': princpt}
+            
+            joint = {'cam_coord': joint_cam, 
+                     'img_coord': joint_img, 
+                     'valid': joint_valid}
+            
+            data = {'img_path': img_path, 
+                    'seq_name': seq_name, 
+                    'cam_param': cam_param, 
+                    'bbox': bbox, 
+                    'joint': joint, 
+                    'hand_type': hand_type, 
+                    'hand_type_valid': hand_type_valid, 
+                    'abs_depth': abs_depth, 
+                    'file_name': img['file_name'], 
+                    'capture': capture_id, 
+                    'cam': cam, 
+                    'frame': frame_idx}
             if hand_type == 'right' or hand_type == 'left':
                 self.datalist_sh.append(data)
             else:
@@ -130,8 +149,16 @@ class Dataset(torch.utils.data.Dataset):
     
     def __getitem__(self, idx):
         data = self.datalist[idx]
-        img_path, bbox, joint, hand_type, hand_type_valid = data['img_path'], data['bbox'], data['joint'], data['hand_type'], data['hand_type_valid']
-        joint_cam = joint['cam_coord'].copy(); joint_img = joint['img_coord'].copy(); joint_valid = joint['valid'].copy();
+
+        img_path = data['img_path']
+        bbox = data['bbox']
+        joint = data['joint']
+        hand_type = data['hand_type']
+        hand_type_valid = data['hand_type_valid']
+        
+        joint_cam = joint['cam_coord'].copy()
+        joint_img = joint['img_coord'].copy()
+        joint_valid = joint['valid'].copy()
         hand_type = self.handtype_str2array(hand_type)
         joint_coord = np.concatenate((joint_img, joint_cam[:,2,None]),1)
         
@@ -146,8 +173,18 @@ class Dataset(torch.utils.data.Dataset):
         img = self.transform(img.astype(np.float32))/255.
         
         inputs = {'img': img}
-        targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
-        meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'hand_type_valid': hand_type_valid, 'inv_trans': inv_trans, 'capture': int(data['capture']), 'cam': int(data['cam']), 'frame': int(data['frame'])}
+
+        targets = {'joint_coord': joint_coord, 
+                   'rel_root_depth': rel_root_depth, 
+                   'hand_type': hand_type}
+
+        meta_info = {'joint_valid': joint_valid, 
+                     'root_valid': root_valid, 
+                     'hand_type_valid': hand_type_valid, 
+                     'inv_trans': inv_trans, 
+                     'capture': int(data['capture']), 
+                     'cam': int(data['cam']), 
+                     'frame': int(data['frame'])}
         return inputs, targets, meta_info
 
     def evaluate(self, preds, mode = 'test', save_dir = None):

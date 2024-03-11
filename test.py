@@ -148,7 +148,7 @@ class Worker(object):
         preds = {'joint_coord': [], 'rel_root_depth': [], 'hand_type': [], 'inv_trans': []}
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
-            if cfg.fast_debug and idx > 2:
+            if cfg.fast_debug and idx > 1:
                 break     
             with torch.no_grad():
                 # inputs = {'img': img}
@@ -162,12 +162,21 @@ class Worker(object):
                     targets[key] = value.to(self.device)
                 # print('img', img.shape)
                 joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(img)
+                
+                # print('joint_heatmap_pred', joint_heatmap_pred.shape) #  torch.Size([bs, 42, 64, 64, 64])
+                # print('rel_root_depth_pred', rel_root_depth_pred.shape) #  torch.Size([bs, 1])
+                # print('hand_type_pred', hand_type_pred.shape) # torch.Size([bs, 2])
 
                 out = self.model.compute_coordinates(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
                 joint_coord_out = out['joint_coord'].cpu().numpy()
                 rel_root_depth_out = out['rel_root_depth'].cpu().numpy()
                 hand_type_out = out['hand_type'].cpu().numpy()
                 inv_trans = out['inv_trans'].cpu().numpy()
+
+                # print('joint_coord_out', joint_coord_out.shape) # (bs, 42, 3)
+                # print('rel_root_depth_out', rel_root_depth_out.shape) # (bs, 1)
+                # print('hand_type_out', hand_type_out.shape) # (bs, 2)
+                # print('inv_trans', inv_trans.shape) # (bs, 2, 3)
 
                 preds['joint_coord'].append(joint_coord_out)
                 preds['rel_root_depth'].append(rel_root_depth_out)

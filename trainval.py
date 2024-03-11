@@ -40,12 +40,22 @@ cfg.is_inference = False
 
 class Worker(object):
     def __init__(self, gpu_index = None):
-        
+        # Check if CUDA is available
         cuda_valid = torch.cuda.is_available()
         if cuda_valid:
-            gpu_index = gpu_index  # # Here set the index of the GPU you want to use
+            # Get the number of available CUDA devices
+            n_gpu = torch.cuda.device_count()
+            
+            print(f"A total of {n_gpu} available GPUs found.")
+            for i in range(n_gpu):
+                print(f"GPU ID: {i}, GPU name: {torch.cuda.get_device_name(i)}")
+        else:
+            print("No available CUDA device found.")
+            
+        if cuda_valid:
+            # gpu_index = gpu_index  # # Here set the index of the GPU you want to use
             print(f"CUDA is available, using GPU {gpu_index}")
-            if cfg.gpu_idx is None:
+            if gpu_idx is None:
                 device = torch.device(f"cuda")
             else:
                 device = torch.device(f"cuda:{gpu_index}")
@@ -53,9 +63,10 @@ class Worker(object):
         else:
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
-        
+        self.device = device
+
         self.dataset = cfg.dataset
-        self.logger.info("Creating train dataset...")
+        print("Creating train dataset...")
         if self.dataset == 'InterHand2.6M':
             train_set = InterHand2M6Dataset(transforms.ToTensor(), "train")
             val_set = InterHand2M6Dataset(transforms.ToTensor(), "val")
@@ -70,25 +81,26 @@ class Worker(object):
         
         joint_num = train_set.joint_num
 
-        self.device = device
-        self.logger.info("Creating graph and optimizer...")
-        model = InterNet(joint_num)
+        
+        print("Creating graph and optimizer...")
+        model = InterNet(joint_num, device = self.device)
         # model = DataParallel(model).cuda()
         
-        self.model = model.to(device)
+        self.model = model.to(self.device)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.lr)
 
 
         if cfg.fast_debug:
             train_batch_size = 2
-            test_batch_size = 2
+            val_batch_size = 2
         else:
             train_batch_size = cfg.train_batch_size
-            test_batch_size = cfg.test_batch_size
-                    
-        self.train_loader = DataLoader(train_set, batch_size=train_batch_size, shuffle=True, num_workers=cfg.num_workers, pin_memory=True, drop_last=True)
-        self.val_loader = DataLoader(val_set, batch_size=test_batch_size, shuffle=False, num_workers=cfg.num_workers, pin_memory=True)
+            val_batch_size = cfg.val_batch_size
+        
+        pin_memory = True if cuda_valid else False
+        self.train_loader = DataLoader(train_set, batch_size=train_batch_size, shuffle=True, num_workers=cfg.num_workers, pin_memory=pin_memory, drop_last=True)
+        self.val_loader = DataLoader(val_set, batch_size=val_batch_size, shuffle=False, num_workers=cfg.num_workers, pin_memory=pin_memory)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
@@ -181,6 +193,7 @@ class Worker(object):
                 self.start_epoch = 0
 
         self.model.to(device)
+        print(f'log di: {self.exp_dir}')
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
@@ -193,6 +206,9 @@ class Worker(object):
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
         epoch_loss = []
+        epoch_joints_loss = []
+        epoch_rel_root_depth_loss = []
+        epoch_hand_type_loss = []
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
             if cfg.fast_debug and idx > 2:
@@ -211,23 +227,49 @@ class Worker(object):
             joint_heatmap_loss = loss['joint_heatmap']
             rel_root_depth_loss = loss['rel_root_depth']
             hand_type_loss = loss['hand_type']
-            loss = joint_heatmap_loss + rel_root_depth_loss + hand_type_loss 
+            # print('joint_heatmap_loss', joint_heatmap_loss.shape)
+            # print('rel_root_depth_loss', rel_root_depth_loss.shape)
+            # print('hand_type_loss', hand_type_loss.shape)
+
+            joint_heatmap_loss = joint_heatmap_loss.mean()
+            rel_root_depth_loss = rel_root_depth_loss.mean()
+            hand_type_loss = hand_type_loss.mean()
+
+            # add loss
+            loss = joint_heatmap_loss + rel_root_depth_loss + hand_type_loss
+
+
+            # loss = {k:loss[k].mean() for k in loss}
+            # # backward
+            # sum(loss[k] for k in loss).backward()
+
             loss.backward()
             self.optimizer.step()
 
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-            loginfo += f'| L_jh: {joint_heatmap_loss.item():.4f}'
-            loginfo += f'| L_rrd: {rel_root_depth_loss.item():.4f}'
-            loginfo += f'| L_ht: {hand_type_loss.item():.4f}'
+            loginfo += f' | L_jh: {joint_heatmap_loss.item():.4f}'
+            loginfo += f' | L_rrd: {rel_root_depth_loss.item():.4f}'
+            loginfo += f' | L_ht: {hand_type_loss.item():.4f}'
 
             tbar.set_description(loginfo)
 
             iter_loss_value = round(loss.item(), 4)
             epoch_loss.append(iter_loss_value)
+            epoch_joints_loss.append(joint_heatmap_loss.item())
+            epoch_rel_root_depth_loss.append(rel_root_depth_loss.item())
+            epoch_hand_type_loss.append(hand_type_loss.item())
+
 
         epoch_loss_value = np.round(np.mean(epoch_loss), 4)
+        epoch_hand_type_loss_value = np.round(np.mean(epoch_hand_type_loss), 4)
+        epoch_rel_root_depth_loss_value = np.round(np.mean(epoch_rel_root_depth_loss), 4)
+        epoch_joints_loss_value = np.round(np.mean(epoch_joints_loss), 4)
+
         self.logger.add_scalar(f'{formatted_split} epoch MPJPE', epoch_loss_value, global_step=cur_epoch)
-        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {epoch_loss_value}'            
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {epoch_loss_value}'       
+        epoch_info += f' | L_jh: {epoch_joints_loss_value}'
+        epoch_info += f' | L_rrd: {epoch_rel_root_depth_loss_value}'
+        epoch_info += f' | L_ht: {epoch_hand_type_loss_value}'     
         # epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
         print(epoch_info)
         self.write_loginfo_to_txt(epoch_info)
@@ -242,7 +284,10 @@ class Worker(object):
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
         epoch_loss = []
-        epoch_mpjpe = []
+        # epoch_mpjpe = []
+        epoch_joints_loss = []
+        epoch_rel_root_depth_loss = []
+        epoch_hand_type_loss = []
 
         for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
             if cfg.fast_debug and idx > 2:
@@ -263,22 +308,43 @@ class Worker(object):
             joint_heatmap_loss = loss['joint_heatmap']
             rel_root_depth_loss = loss['rel_root_depth']
             hand_type_loss = loss['hand_type']
-            loss = joint_heatmap_loss + rel_root_depth_loss + hand_type_loss 
+            # print('joint_heatmap_loss', joint_heatmap_loss.shape)
+            # print('rel_root_depth_loss', rel_root_depth_loss.shape)
+            # print('hand_type_loss', hand_type_loss.shape)
+
+            joint_heatmap_loss = joint_heatmap_loss.mean()
+            rel_root_depth_loss = rel_root_depth_loss.mean()
+            hand_type_loss = hand_type_loss.mean()
+
+            # add loss
+            loss = joint_heatmap_loss + rel_root_depth_loss + hand_type_loss
+
 
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-            loginfo += f'| L_jh: {joint_heatmap_loss.item():.4f}'
-            loginfo += f'| L_rrd: {rel_root_depth_loss.item():.4f}'
-            loginfo += f'| L_ht: {hand_type_loss.item():.4f}'
+            loginfo += f' | L_jh: {joint_heatmap_loss.item():.4f}'
+            loginfo += f' | L_rrd: {rel_root_depth_loss.item():.4f}'
+            loginfo += f' | L_ht: {hand_type_loss.item():.4f}'
 
             tbar.set_description(loginfo)
 
             iter_loss_value = round(loss.item(), 4)
             epoch_loss.append(iter_loss_value)
+            
+            epoch_joints_loss.append(joint_heatmap_loss.item())
+            epoch_rel_root_depth_loss.append(rel_root_depth_loss.item())
+            epoch_hand_type_loss.append(hand_type_loss.item())
 
         epoch_loss_value = np.round(np.mean(epoch_loss), 4)
+        epoch_hand_type_loss_value = np.round(np.mean(epoch_hand_type_loss), 4)
+        epoch_rel_root_depth_loss_value = np.round(np.mean(epoch_rel_root_depth_loss), 4)
+        epoch_joints_loss_value = np.round(np.mean(epoch_joints_loss), 4)
+        # epoch_mpjpe_value = np.round(np.mean(epoch_mpjpe), 5)
         self.logger.add_scalar(f'{formatted_split} epoch MPJPE', epoch_loss_value, global_step=cur_epoch)
-        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {epoch_loss_value}'            
-        # epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {epoch_loss_value}'       
+        epoch_info += f' | L_jh: {epoch_joints_loss_value}'
+        epoch_info += f' | L_rrd: {epoch_rel_root_depth_loss_value}'
+        epoch_info += f' | L_ht: {epoch_hand_type_loss_value}'          
+        
         
         self.write_loginfo_to_txt(epoch_info)
         self.write_loginfo_to_txt('')
@@ -328,9 +394,10 @@ class Worker(object):
     def run(self):
         for epoch in range(self.start_epoch, cfg.end_epoch): 
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
-            self.training(epoch, cfg.end_epoch, self.train_loader, 'training')
+            self.training(epoch, cfg.end_epoch, 'training')
+            epoch_loss = self.validation(epoch, cfg.end_epoch, 'validation')
+            torch.cuda.empty_cache()
 
-            epoch_loss = self.validation(epoch, cfg.end_epoch, self.val_loader, 'validation')
             checkpoint = {
                         'epoch': epoch + 1,
                         'state_dict': self.model.state_dict(),
@@ -355,6 +422,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     gpu_idx = args.gpuid
     cfg.fast_debug = args.fast_debug
+    # cfg.fast_debug = True
     # fast_debug = True
     worker = Worker(gpu_idx)
     worker.run()

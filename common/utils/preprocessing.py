@@ -66,8 +66,8 @@ def get_aug_config():
 
 def augmentation(img, bbox, joint_coord, joint_valid, hand_type, mode, joint_type):
     img = img.copy(); 
-    joint_coord = joint_coord.copy(); 
-    hand_type = hand_type.copy();
+    joint_coord = joint_coord.copy()
+    hand_type = hand_type.copy()
 
     original_img_shape = img.shape
     joint_num = len(joint_coord)
@@ -110,14 +110,18 @@ def transform_input_to_output_space(joint_coord, joint_valid, rel_root_depth, ro
     return joint_coord, joint_valid, rel_root_depth, root_valid
 
 def get_bbox(joint_img, joint_valid):
-    x_img = joint_img[:,0][joint_valid==1]; y_img = joint_img[:,1][joint_valid==1];
-    xmin = min(x_img); ymin = min(y_img); xmax = max(x_img); ymax = max(y_img);
+    x_img = joint_img[:,0][joint_valid==1]
+    y_img = joint_img[:,1][joint_valid==1]
+    xmin = min(x_img); ymin = min(y_img)
+    xmax = max(x_img); ymax = max(y_img)
 
-    x_center = (xmin+xmax)/2.; width = xmax-xmin;
+    x_center = (xmin+xmax)/2.
+    width = xmax-xmin
     xmin = x_center - 0.5*width*1.2
     xmax = x_center + 0.5*width*1.2
     
-    y_center = (ymin+ymax)/2.; height = ymax-ymin;
+    y_center = (ymin+ymax)/2.
+    height = ymax-ymin
     ymin = y_center - 0.5*height*1.2
     ymax = y_center + 0.5*height*1.2
 

@@ -9,6 +9,7 @@ model_name = 'InterNet'
 
 ## dataset
 dataset = 'InterHand2.6M' # InterHand2.6M, RHD, STB
+dataset = 'RHD' # InterHand2.6M, RHD, STB
 
 ## input, output
 input_img_shape = (256, 256)
@@ -28,10 +29,11 @@ lr_dec_epoch = [15, 17] if dataset == 'InterHand2.6M' else [45,47]
 end_epoch = 20 if dataset == 'InterHand2.6M' else 50
 lr = 1e-4
 lr_dec_factor = 10
-train_batch_size = 16
+train_batch_size = 200
+val_batch_size = 200
 
 ## testing config
-test_batch_size = 32
+test_batch_size = 20
 trans_test = 'rootnet' # gt, rootnet
 
 
@@ -46,6 +48,8 @@ fast_debug = False
 resume_weight_path = None
 fine_tune = False
 
-infer_resume_weight_path = 'Pre-trained_weights/InterHand2.6M/snapshot_20.pth.tar'
+# infer_resume_weight_path = 'Pre-trained_weights/InterHand2.6M/snapshot_20.pth.tar'
+# infer_resume_weight_path = 'Pre-trained_weights/RHD/snapshot_49.pth.tar'
+infer_resume_weight_path = 'log/InterNet/RHD/run_2024-03-10-23-46-35/model_best.pth.tar'
 
 vis_dir = None
