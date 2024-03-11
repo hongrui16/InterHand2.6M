@@ -4,7 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
+import torch
+from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import torch
 import torch.utils.data
@@ -18,6 +19,9 @@ import math
 from pycocotools.coco import COCO
 import scipy.io as sio
 import sys, os
+import shutil
+import matplotlib.pyplot as plt
+
 sys.path.append('../..')
 
 from config import config as cfg
@@ -82,7 +86,7 @@ class Dataset(torch.utils.data.Dataset):
             
             campos = np.array(cameras[str(capture_id)]['campos'][str(cam)], dtype=np.float32)
             camrot = np.array(cameras[str(capture_id)]['camrot'][str(cam)], dtype=np.float32)
-            focal = np.array(cameras[str(capture_id)]['focal'][str(cam)], dtype=np.float32), 
+            focal = np.array(cameras[str(capture_id)]['focal'][str(cam)], dtype=np.float32)
             princpt = np.array(cameras[str(capture_id)]['princpt'][str(cam)], dtype=np.float32)
             joint_world = np.array(joints[str(capture_id)][str(frame_idx)]['world_coord'], dtype=np.float32)
             joint_cam = world2cam(joint_world.transpose(1,0), camrot, campos.reshape(3,1)).transpose(1,0)
@@ -172,7 +176,7 @@ class Dataset(torch.utils.data.Dataset):
         joint_coord, joint_valid, rel_root_depth, root_valid = transform_input_to_output_space(joint_coord, joint_valid, rel_root_depth, root_valid, self.root_joint_idx, self.joint_type)
         img = self.transform(img.astype(np.float32))/255.
         
-        inputs = {'img': img}
+        inputs = {'img': img, 'img_path': img_path}
 
         targets = {'joint_coord': joint_coord, 
                    'rel_root_depth': rel_root_depth, 
@@ -345,3 +349,37 @@ class Dataset(torch.utils.data.Dataset):
 
 
 
+
+if __name__ == '__main__':
+    import torchvision.transforms as transforms
+    transform = transforms.Compose([transforms.ToTensor()])
+    dataset = Dataset(transform, 'test')
+    batch_size = 1
+    num_workers = 0
+    # Creating the DataLoader
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = num_workers)
+
+
+    i = 0
+    for batch in dataloader:
+
+        inputs, targets, meta_info = batch
+        '''        inputs = {'img': img}
+        targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
+        meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
+        '''
+        print(inputs['img'].shape) # torch.Size([bs, 3, 256, 256])
+        print(targets['joint_coord'].shape) # torch.Size([bs, 42, 3])
+        print(targets['rel_root_depth'].shape) # torch.Size([bs, 1])
+        print(targets['hand_type'].shape) # torch.Size([bs, 2])
+        print(meta_info['joint_valid'].shape) # torch.Size([bs, 42])
+        print(meta_info['root_valid'].shape) # torch.Size([bs, 1])
+        print(meta_info['inv_trans'].shape) # torch.Size([bs, 2, 3])
+        print(meta_info['hand_type_valid'].shape) # torch.Size([bs, 1])
+
+        img = (inputs['img'].cpu().numpy()*255).astype(np.uint8)
+        img_path = inputs['img_path']
+        img_name = img_path[0].split('/')[-1]
+        shutil.copy(img_path[0], f'./{img_name}')
+        cv2.imwrite(f'crop_{img_name}', img[0].transpose(1,2,0)[:,:,::-1])
+        break

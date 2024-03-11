@@ -4,6 +4,8 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import torch
+from torch.utils.data import Dataset, DataLoader
 
 import numpy as np
 import torch
@@ -17,6 +19,7 @@ import json
 import math
 from pycocotools.coco import COCO
 import sys, os
+import shutil
 
 sys.path.append('../..')
 from config import config as cfg
@@ -127,14 +130,19 @@ class Dataset(torch.utils.data.Dataset):
         # image load
         img = load_img(img_path)
         # augmentation
-        img, joint_coord, joint_valid, hand_type, inv_trans = augmentation(img, bbox, joint_coord, joint_valid, hand_type, self.mode, self.joint_type)
-        img = self.transform(img.astype(np.float32))/255.
+        crop_img, joint_coord, joint_valid, hand_type, inv_trans = augmentation(img, bbox, joint_coord, joint_valid, hand_type, self.mode, self.joint_type)
+        # crop hand region from whole image
+        crop_img = self.transform(crop_img.astype(np.float32))/255.
         rel_root_depth = np.zeros((1),dtype=np.float32)
         root_valid = np.zeros((1),dtype=np.float32)
         # transform to output heatmap space
         joint_coord, joint_valid, rel_root_depth, root_valid = transform_input_to_output_space(joint_coord, joint_valid, rel_root_depth, root_valid, self.root_joint_idx, self.joint_type)
+        # print('joint_coord', joint_coord.shape) # (42, 3)
+        # print('rel_root_depth', rel_root_depth.shape) # (1,)
+        # print('hand_type', hand_type.shape) # (2,)
 
-        inputs = {'img': img}
+
+        inputs = {'img': crop_img, 'img_path': img_path}
         targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
         return inputs, targets, meta_info
@@ -227,3 +235,38 @@ class Dataset(torch.utils.data.Dataset):
         print(eval_summary)
         print('MPJPE: %.2f' % (np.mean(mpjpe)))
 
+
+
+if __name__ == '__main__':
+    import torchvision.transforms as transforms
+    transform = transforms.Compose([transforms.ToTensor()])
+    dataset = Dataset(transform, 'val')
+    batch_size = 1
+    num_workers = 0
+    # Creating the DataLoader
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = num_workers)
+
+
+    i = 0
+    for batch in dataloader:
+
+        inputs, targets, meta_info = batch
+        '''        inputs = {'img': img}
+        targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
+        meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
+        '''
+        print(inputs['img'].shape) # torch.Size([bs, 3, 256, 256])
+        print(targets['joint_coord'].shape) # torch.Size([bs, 42, 3])
+        print(targets['rel_root_depth'].shape) # torch.Size([bs, 1])
+        print(targets['hand_type'].shape) # torch.Size([bs, 2])
+        print(meta_info['joint_valid'].shape) # torch.Size([bs, 42])
+        print(meta_info['root_valid'].shape) # torch.Size([bs, 1])
+        print(meta_info['inv_trans'].shape) # torch.Size([bs, 2, 3])
+        print(meta_info['hand_type_valid'].shape) # torch.Size([bs, 1])
+
+        img = (inputs['img'].cpu().numpy()*255).astype(np.uint8)
+        img_path = inputs['img_path']
+        img_name = img_path[0].split('/')[-1]
+        shutil.copy(img_path[0], f'./{img_name}')
+        cv2.imwrite(f'crop_{img_name}', img[0].transpose(1,2,0)[:,:,::-1])
+        break

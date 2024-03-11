@@ -60,6 +60,10 @@ class InterNet(nn.Module):
         batch_size = input_img.shape[0]
         img_feat = self.backbone_net(input_img)
         joint_heatmap_out, rel_root_depth_out, hand_type_out = self.pose_net(img_feat)
+        # print('joint_heatmap_out', joint_heatmap_out.shape) # torch.Size([bs, 42, 64, 64, 64])
+        # print('rel_root_depth_out', rel_root_depth_out.shape) # torch.Size([bs, 1])
+        # print('hand_type_out', hand_type_out.shape) # torch.Size([bs, 2])
+        
         # self.joint_heatmap_out = joint_heatmap_out
         # self.rel_root_depth_out = rel_root_depth_out
         # self.hand_type = hand_type
