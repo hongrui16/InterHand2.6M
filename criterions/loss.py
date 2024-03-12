@@ -10,7 +10,12 @@ import torch.nn as nn
 from torch.nn import functional as F
 import numpy as np
 import math
+import os, sys
+
+sys.path.append('../')
+
 from config import config as cfg
+from utils.compute_heatmap import render_gaussian_heatmap
 
 class JointHeatmapLoss(nn.Module):
     def __ini__(self):
@@ -39,3 +44,24 @@ class RelRootDepthLoss(nn.Module):
         loss = torch.abs(root_depth_out - root_depth_gt) * root_valid
         return loss
 
+
+class LossCalculation(nn.Module):
+    def __init__(self, device = 'cpu'):
+        super(LossCalculation, self).__init__()
+
+        # loss functions
+        self.joint_heatmap_loss = JointHeatmapLoss()
+        self.rel_root_depth_loss = RelRootDepthLoss()
+        self.hand_type_loss = HandTypeLoss()
+
+    
+    def forward(self, joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info):
+        target_joint_heatmap = render_gaussian_heatmap(targets['joint_coord'])
+        
+        loss = {}
+        loss['joint_heatmap'] = self.joint_heatmap_loss(joint_heatmap_pred, target_joint_heatmap, meta_info['joint_valid'])
+        loss['rel_root_depth'] = self.rel_root_depth_loss(rel_root_depth_pred, targets['rel_root_depth'], meta_info['root_valid'])
+        loss['hand_type'] = self.hand_type_loss(hand_type_pred, targets['hand_type'], meta_info['hand_type_valid'])
+
+    
+        return loss

@@ -9,7 +9,7 @@ model_name = 'InterNet'
 
 ## dataset
 dataset = 'InterHand2.6M' # InterHand2.6M, RHD, STB
-# dataset = 'RHD' # InterHand2.6M, RHD, STB
+dataset = 'RHD' # InterHand2.6M, RHD, STB
 
 ## input, output
 input_img_shape = (256, 256)
@@ -51,5 +51,6 @@ fine_tune = False
 infer_resume_weight_path = 'Pre-trained_weights/InterHand2.6M/snapshot_20.pth.tar'
 # infer_resume_weight_path = 'Pre-trained_weights/RHD/snapshot_49.pth.tar'
 infer_resume_weight_path = 'log/InterNet/RHD/run_2024-03-10-23-46-35/model_best.pth.tar'
+infer_resume_weight_path = 'log/InterNet/RHD/run_2024-03-11-00-17-27/model_best.pth.tar'
 
 vis_dir = None

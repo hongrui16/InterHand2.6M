@@ -25,9 +25,10 @@ from dataloader.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
 from dataloader.RHD.dataset import Dataset as RHDDataset
 from dataloader.STB.dataset import Dataset as STBDataset
 
-from common.timer import Timer
-from common.logger import colorlogger
-from common.interNet import InterNet
+from utils.timer import Timer
+from utils.logger import colorlogger
+from network.interNet import InterNet
+from criterions.loss import LossCalculation
 
 cfg.is_inference = False
 
@@ -64,6 +65,9 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         self.device = device
+
+        self.criteria = LossCalculation(device = self.device)
+
 
         self.dataset = cfg.dataset
         print("Creating train dataset...")
@@ -222,7 +226,7 @@ class Worker(object):
                 targets[key] = value.to(self.device)
                 
             joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(img)
-            loss = self.model.compute_loss(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
+            loss = self.criteria(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
 
             joint_heatmap_loss = loss['joint_heatmap']
             rel_root_depth_loss = loss['rel_root_depth']
@@ -303,7 +307,7 @@ class Worker(object):
                     
                 joint_heatmap_pred, rel_root_depth_pred, hand_type_pred = self.model(img)
                 
-                loss = self.model.compute_loss(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
+                loss = self.criteria(joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info)
 
             joint_heatmap_loss = loss['joint_heatmap']
             rel_root_depth_loss = loss['rel_root_depth']

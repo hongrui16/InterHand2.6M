@@ -25,9 +25,10 @@ import matplotlib.pyplot as plt
 sys.path.append('../..')
 
 from config import config as cfg
-from common.utils.preprocessing import load_img, load_skeleton, get_bbox, process_bbox, augmentation, transform_input_to_output_space, trans_point2d
-from common.utils.transforms import world2cam, cam2pixel, pixel2cam
-from common.utils.vis import vis_keypoints, vis_3d_keypoints
+from utils.preprocessing import load_img, load_skeleton, get_bbox, process_bbox, augmentation, transform_input_to_output_space, trans_point2d
+from utils.transforms import world2cam, cam2pixel, pixel2cam
+from utils.vis import vis_keypoints, vis_3d_keypoints
+from utils.compute_heatmap import render_gaussian_heatmap
 
 
 class Dataset(torch.utils.data.Dataset):
@@ -353,7 +354,7 @@ class Dataset(torch.utils.data.Dataset):
 if __name__ == '__main__':
     import torchvision.transforms as transforms
     transform = transforms.Compose([transforms.ToTensor()])
-    dataset = Dataset(transform, 'test')
+    dataset = Dataset(transform, 'train')
     batch_size = 1
     num_workers = 0
     # Creating the DataLoader

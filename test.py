@@ -26,9 +26,9 @@ from dataloader.InterHand2M6.dataset import Dataset as InterHand2M6Dataset
 from dataloader.RHD.dataset import Dataset as RHDDataset
 from dataloader.STB.dataset import Dataset as STBDataset
 
-from common.timer import Timer
-from common.logger import colorlogger
-from common.interNet import InterNet
+from utils.timer import Timer
+from utils.logger import colorlogger
+from network.interNet import InterNet
 
 
 cfg.is_inference = True

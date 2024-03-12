@@ -10,13 +10,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
-from common.nets.module import BackboneNet, PoseNet
-from common.nets.loss import JointHeatmapLoss, HandTypeLoss, RelRootDepthLoss
 import sys, os
 
 sys.path.append('../')
 
 from config import config as cfg
+from network.submodules.module import BackboneNet, PoseNet
 
 
 class InterNet(nn.Module):
@@ -35,29 +34,9 @@ class InterNet(nn.Module):
         self.backbone_net = backbone_net
         self.pose_net = pose_net
           
-        # loss functions
-        self.joint_heatmap_loss = JointHeatmapLoss()
-        self.rel_root_depth_loss = RelRootDepthLoss()
-        self.hand_type_loss = HandTypeLoss()
-     
-    def render_gaussian_heatmap(self, joint_coord):
-        x = torch.arange(cfg.output_hm_shape[2])
-        y = torch.arange(cfg.output_hm_shape[1])
-        z = torch.arange(cfg.output_hm_shape[0])
-        zz,yy,xx = torch.meshgrid(z,y,x)
-        xx = xx[None,None,:,:,:].to(self.device).float()
-        yy = yy[None,None,:,:,:].to(self.device).float()
-        zz = zz[None,None,:,:,:].to(self.device).float()
-        
-        x = joint_coord[:,:,0,None,None,None]
-        y = joint_coord[:,:,1,None,None,None]
-        z = joint_coord[:,:,2,None,None,None]
-        heatmap = torch.exp(-(((xx-x)/cfg.sigma)**2)/2 -(((yy-y)/cfg.sigma)**2)/2 - (((zz-z)/cfg.sigma)**2)/2)
-        heatmap = heatmap * 255
-        return heatmap
-   
+
     def forward(self, input_img):
-        batch_size = input_img.shape[0]
+        # batch_size = input_img.shape[0]
         img_feat = self.backbone_net(input_img)
         joint_heatmap_out, rel_root_depth_out, hand_type_out = self.pose_net(img_feat)
         # print('joint_heatmap_out', joint_heatmap_out.shape) # torch.Size([bs, 42, 64, 64, 64])
@@ -69,17 +48,8 @@ class InterNet(nn.Module):
         # self.hand_type = hand_type
         return joint_heatmap_out, rel_root_depth_out, hand_type_out
         
-    def compute_loss(self, joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info):
-        target_joint_heatmap = self.render_gaussian_heatmap(targets['joint_coord'])
-        
-        loss = {}
-        loss['joint_heatmap'] = self.joint_heatmap_loss(joint_heatmap_pred, target_joint_heatmap, meta_info['joint_valid'])
-        loss['rel_root_depth'] = self.rel_root_depth_loss(rel_root_depth_pred, targets['rel_root_depth'], meta_info['root_valid'])
-        loss['hand_type'] = self.hand_type_loss(hand_type_pred, targets['hand_type'], meta_info['hand_type_valid'])
+    
 
-    
-        return loss
-    
     def compute_coordinates(self, joint_heatmap_pred, rel_root_depth_pred, hand_type_pred, targets, meta_info):
         out = {}
         val_z, idx_z = torch.max(joint_heatmap_pred,2)

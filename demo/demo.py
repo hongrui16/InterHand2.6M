@@ -18,9 +18,9 @@ import torch.backends.cudnn as cudnn
 
 sys.path.append('../')
 from config import config as cfg
-from common.interNet import InterNet
-from common.utils.preprocessing import load_img, load_skeleton, process_bbox, generate_patch_image, transform_input_to_output_space, trans_point2d
-from common.utils.vis import vis_keypoints, vis_3d_keypoints
+from network.interNet import InterNet
+from utils.preprocessing import load_img, load_skeleton, process_bbox, generate_patch_image, transform_input_to_output_space, trans_point2d
+from utils.vis import vis_keypoints, vis_3d_keypoints
 
 def demo(args):
     cuda_valid = torch.cuda.is_available()

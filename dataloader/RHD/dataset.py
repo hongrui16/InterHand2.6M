@@ -23,10 +23,10 @@ import shutil
 
 sys.path.append('../..')
 from config import config as cfg
-from common.utils.preprocessing import load_img, load_skeleton, process_bbox, get_aug_config, augmentation, transform_input_to_output_space, generate_patch_image, trans_point2d
-from common.utils.transforms import world2cam, cam2pixel, pixel2cam
-from common.utils.vis import vis_keypoints, vis_3d_keypoints
-
+from utils.preprocessing import load_img, load_skeleton, process_bbox, get_aug_config, augmentation, transform_input_to_output_space, generate_patch_image, trans_point2d
+from utils.transforms import world2cam, cam2pixel, pixel2cam
+from utils.vis import vis_keypoints, vis_3d_keypoints
+from utils.compute_heatmap import render_gaussian_heatmap
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, transform, mode):
@@ -146,6 +146,7 @@ class Dataset(torch.utils.data.Dataset):
         targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
         return inputs, targets, meta_info
+    
 
     def evaluate(self, preds, save_dir = None):
         print() 
@@ -269,4 +270,8 @@ if __name__ == '__main__':
         img_name = img_path[0].split('/')[-1]
         shutil.copy(img_path[0], f'./{img_name}')
         cv2.imwrite(f'crop_{img_name}', img[0].transpose(1,2,0)[:,:,::-1])
+
+        gaussian_heatmap = render_gaussian_heatmap(targets['joint_coord'])
+        gaussian_heatmap = gaussian_heatmap.cpu().numpy().astype(np.uint8)[0]
+        print(gaussian_heatmap.shape)
         break

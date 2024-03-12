@@ -14,8 +14,8 @@ sys.path.append('../..')
 
 from config import config as cfg
 
-from common.nets.layer import make_linear_layers, make_conv_layers, make_deconv_layers, make_upsample_layers
-from common.nets.resnet import ResNetBackbone
+from network.submodules.layer import make_linear_layers, make_conv_layers, make_deconv_layers, make_upsample_layers
+from network.submodules.resnet import ResNetBackbone
 import math
 
 class BackboneNet(nn.Module):
