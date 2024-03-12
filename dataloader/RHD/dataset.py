@@ -121,39 +121,80 @@ class Dataset(torch.utils.data.Dataset):
         return len(self.datalist)
     
     def __getitem__(self, idx):
+        '''
+        Even though the joint_can and joint_img are 42-dim, only one between the first 21-dim and the second 21-dim is valid, which means
+        either a left hand or a right hand is valid at a time.
+        '''
         data = self.datalist[idx]
-        img_path, bbox, joint, hand_type = data['img_path'], data['bbox'], data['joint'], data['hand_type']
-        joint_cam = joint['cam_coord'].copy(); joint_img = joint['img_coord'].copy(); joint_valid = joint['valid'].copy();
+        img_path = data['img_path']
+        bbox = data['bbox'] # x,y,w,h, main hand bbox
+        joint = data['joint']
+        hand_type = data['hand_type'] ## right or left
+        joint_cam = joint['cam_coord'].copy() ## joint xyz coordinates in camera coordinate system, 3-dim vector with a length of 42, 0~20 for left hand, 21~41 for right hand
+        joint_img = joint['img_coord'].copy() ## joint uv coordinates in pixel coordinate system
+        joint_valid = joint['valid'].copy() ## joint valid flags, 0 for invalid joint and 1 for valid joint, 1-dim vector with a length of 42
+
+        # print('img_path', img_path)
+        # print('hand_type', hand_type)
+        # print('joint_cam\n', joint_cam)
+        # print('joint_img\n', joint_img)
+        # print('bbox\n', bbox)
+        # print('joint_valid\n', joint_valid)
+        # # print('joint_valid', joint_valid.shape) # (42,)
         hand_type = self.handtype_str2array(hand_type)
+        # print('hand_type', hand_type) # [1. 0.] for right or [0. 1.] for left
         joint_coord = np.concatenate((joint_img, joint_cam[:,2,None]),1)
+        # print('joint_coord\n', joint_coord) # (42, 3), uvz, 0~20 for left hand, 21~41 for right hand
+        
 
         # image load
         img = load_img(img_path)
         # augmentation
-        crop_img, joint_coord, joint_valid, hand_type, inv_trans = augmentation(img, bbox, joint_coord, joint_valid, hand_type, self.mode, self.joint_type)
+        crop_img, joint_coord, joint_valid, hand_type, inv_trans = augmentation(img, bbox, joint_coord, joint_valid, 
+                                                                                hand_type, self.mode, self.joint_type)
+        print('-----------joint_coord\n', joint_coord)
+        print('joint_valid\n', joint_valid)
+        print('hand_type\n', hand_type)
+        print('inv_trans\n', inv_trans)
+
+        
         # crop hand region from whole image
         crop_img = self.transform(crop_img.astype(np.float32))/255.
         rel_root_depth = np.zeros((1),dtype=np.float32)
         root_valid = np.zeros((1),dtype=np.float32)
+        
         # transform to output heatmap space
-        joint_coord, joint_valid, rel_root_depth, root_valid = transform_input_to_output_space(joint_coord, joint_valid, rel_root_depth, root_valid, self.root_joint_idx, self.joint_type)
+        joint_coord, joint_valid, rel_root_depth, root_valid = transform_input_to_output_space(joint_coord, joint_valid, rel_root_depth, 
+                                                                                               root_valid, self.root_joint_idx, self.joint_type)
+        ## joint_coord in output heatmap space
+
         # print('joint_coord', joint_coord.shape) # (42, 3)
         # print('rel_root_depth', rel_root_depth.shape) # (1,)
         # print('hand_type', hand_type.shape) # (2,)
-
+        # print('22222222222 joint_coord\n', joint_coord) ## joint_coord in output heatmap space
+        # print('joint_valid\n', joint_valid)
+        # print('rel_root_depth\n', rel_root_depth) ## all rel_root_depth are 32
+        # print('root_valid\n', root_valid) ## all root_valid are 0
 
         inputs = {'img': crop_img, 'img_path': img_path}
         targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
-        return inputs, targets, meta_info
+
+        return inputs, targets, meta_info, data
     
 
-    def evaluate(self, preds, save_dir = None):
+    def evaluate_per_iter(self, preds, targets = None, meta_info = None, mode = 'test',  save_dir = None):
+        pass
+    
+    def evaluate(self, preds, mode = 'test',  save_dir = None):
         print() 
         print('Evaluation start...')
 
         gts = self.datalist
-        preds_joint_coord, preds_rel_root_depth, preds_hand_type, inv_trans = preds['joint_coord'], preds['rel_root_depth'], preds['hand_type'], preds['inv_trans']
+        preds_joint_coord = preds['joint_coord']
+        preds_rel_root_depth = preds['rel_root_depth']
+        preds_hand_type = preds['hand_type']
+        inv_trans =  preds['inv_trans']
                 # if preds_joint_coord is tensor, convert it to numpy
         if isinstance(preds_joint_coord, torch.Tensor):
             preds_joint_coord = preds_joint_coord.cpu().numpy()
@@ -169,7 +210,12 @@ class Dataset(torch.utils.data.Dataset):
         acc_hand_cls = 0
         for n in range(sample_num):
             data = gts[n]
-            bbox, cam_param, joint, gt_hand_type = data['bbox'], data['cam_param'], data['joint'], data['hand_type']
+
+            bbox = data['bbox']
+            cam_param = data['cam_param']
+            joint = data['joint']
+            gt_hand_type = data['hand_type']
+
             focal = cam_param['focal']
             princpt = cam_param['princpt']
             gt_joint_coord = joint['cam_coord']
@@ -187,7 +233,7 @@ class Dataset(torch.utils.data.Dataset):
             # back project to camera coordinate system
             pred_joint_coord_cam = pixel2cam(pred_joint_coord_img, focal, princpt)
 
-            # root joint alignment
+            # root joint alignment, convert absolute coordinates to the relative coordinates
             pred_joint_coord_cam[self.joint_type['right']] = pred_joint_coord_cam[self.joint_type['right']] - pred_joint_coord_cam[self.root_joint_idx['right'],None,:]
             pred_joint_coord_cam[self.joint_type['left']] = pred_joint_coord_cam[self.joint_type['left']] - pred_joint_coord_cam[self.root_joint_idx['left'],None,:]
             gt_joint_coord[self.joint_type['right']] = gt_joint_coord[self.joint_type['right']] - gt_joint_coord[self.root_joint_idx['right'],None,:]
@@ -251,27 +297,34 @@ if __name__ == '__main__':
     i = 0
     for batch in dataloader:
 
-        inputs, targets, meta_info = batch
+        inputs, targets, meta_info, data = batch
         '''        inputs = {'img': img}
         targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
         '''
-        print(inputs['img'].shape) # torch.Size([bs, 3, 256, 256])
-        print(targets['joint_coord'].shape) # torch.Size([bs, 42, 3])
-        print(targets['rel_root_depth'].shape) # torch.Size([bs, 1])
-        print(targets['hand_type'].shape) # torch.Size([bs, 2])
-        print(meta_info['joint_valid'].shape) # torch.Size([bs, 42])
-        print(meta_info['root_valid'].shape) # torch.Size([bs, 1])
-        print(meta_info['inv_trans'].shape) # torch.Size([bs, 2, 3])
-        print(meta_info['hand_type_valid'].shape) # torch.Size([bs, 1])
+        # print(inputs['img'].shape) # torch.Size([bs, 3, 256, 256])
+        # print(targets['joint_coord'].shape) # torch.Size([bs, 42, 3])
+        # print(targets['rel_root_depth'].shape) # torch.Size([bs, 1])
+        # print(targets['hand_type'].shape) # torch.Size([bs, 2])
+        # print(meta_info['joint_valid'].shape) # torch.Size([bs, 42])
+        # print(meta_info['root_valid'].shape) # torch.Size([bs, 1])
+        # print(meta_info['inv_trans'].shape) # torch.Size([bs, 2, 3])
+        # print(meta_info['hand_type_valid'].shape) # torch.Size([bs, 1])
 
-        img = (inputs['img'].cpu().numpy()*255).astype(np.uint8)
+
+        # img = (inputs['img'].cpu().numpy()*255).astype(np.uint8)
         img_path = inputs['img_path']
-        img_name = img_path[0].split('/')[-1]
-        shutil.copy(img_path[0], f'./{img_name}')
-        cv2.imwrite(f'crop_{img_name}', img[0].transpose(1,2,0)[:,:,::-1])
+        # img_name = img_path[0].split('/')[-1]
+        # shutil.copy(img_path[0], f'img_examples/{img_name}')
+        # cv2.imwrite(f"img_examples/{img_name.split('.')[0]}_crop.{img_name.split('.')[1]}", img[0].transpose(1,2,0)[:,:,::-1])
 
-        gaussian_heatmap = render_gaussian_heatmap(targets['joint_coord'])
-        gaussian_heatmap = gaussian_heatmap.cpu().numpy().astype(np.uint8)[0]
-        print(gaussian_heatmap.shape)
-        break
+        # gaussian_heatmap = render_gaussian_heatmap(targets['joint_coord'])
+        # gaussian_heatmap = gaussian_heatmap.cpu().numpy().astype(np.uint8)[0]
+        # print(gaussian_heatmap.shape)
+
+
+        # break
+        i += 1
+        print('')
+        if i > 5:
+            break

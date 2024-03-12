@@ -147,7 +147,7 @@ class Worker(object):
 
         preds = {'joint_coord': [], 'rel_root_depth': [], 'hand_type': [], 'inv_trans': []}
 
-        for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
+        for idx, (inputs, targets, meta_info, _) in enumerate(tbar): # 6 ~ 10 s
             if cfg.fast_debug and idx > 1:
                 break     
             with torch.no_grad():
@@ -188,6 +188,7 @@ class Worker(object):
                 tbar.set_description(loginfo)
 
         preds = {k: np.concatenate(v) for k,v in preds.items()}
+        
         self.data_set.evaluate(preds, save_dir = self.img_save_dir)
         
         # self.write_loginfo_to_txt(epoch_info)

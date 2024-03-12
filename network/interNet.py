@@ -25,15 +25,11 @@ class InterNet(nn.Module):
         if joint_num is None:
             joint_num = cfg.joint_num
         
-        backbone_net = BackboneNet(self.device)
-        pose_net = PoseNet(joint_num, device = self.device)
+        self.backbone_net = BackboneNet(self.device)
+        self.pose_net = PoseNet(joint_num, device = self.device)
 
-        pose_net.apply(init_weights)
+        self.pose_net.apply(init_weights)
 
-        # modules
-        self.backbone_net = backbone_net
-        self.pose_net = pose_net
-          
 
     def forward(self, input_img):
         # batch_size = input_img.shape[0]

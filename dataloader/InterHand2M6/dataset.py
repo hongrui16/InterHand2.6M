@@ -40,7 +40,7 @@ class Dataset(torch.utils.data.Dataset):
         self.annot_path =  f'{self.dataset_root_dir}/annotations'
         if self.mode == 'val':
             self.rootnet_output_path =  f'{self.dataset_root_dir}/rootnet_output/rootnet_interhand2.6m_output_val.json'
-        else:
+        elif self.mode == 'test':
             self.rootnet_output_path =  f'{self.dataset_root_dir}/rootnet_output/rootnet_interhand2.6m_output_test.json'
         self.rootnet_output_dir =  f'{self.dataset_root_dir}/rootnet_output'
         os.makedirs(self.rootnet_output_dir, exist_ok=True)
@@ -155,27 +155,54 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         data = self.datalist[idx]
 
+
         img_path = data['img_path']
         bbox = data['bbox']
         joint = data['joint']
         hand_type = data['hand_type']
         hand_type_valid = data['hand_type_valid']
+        cam_param = data['cam_param']
+        focal = cam_param['focal']
+        princpt = cam_param['princpt']
+
+        print('img_path', img_path)
+        print('bbox', bbox)
+        print('hand_type', hand_type)
+        print('hand_type_valid', hand_type_valid)
+        print('focal', focal)
+        print('princpt', princpt)
         
+
         joint_cam = joint['cam_coord'].copy()
         joint_img = joint['img_coord'].copy()
         joint_valid = joint['valid'].copy()
         hand_type = self.handtype_str2array(hand_type)
         joint_coord = np.concatenate((joint_img, joint_cam[:,2,None]),1)
         
+        print('joint_cam\n', joint_cam)
+        print('joint_img\n', joint_img)
+        print('joint_valid\n', joint_valid)
+        print('hand_type', hand_type)
+        print('joint_coord\n', joint_coord)
+        # print('joint_valid', joint_valid.shape) # (42,)
+            
+
         # image load
         img = load_img(img_path)
-        # augmentation
+
+        # do augmentation for uv coordinate and image
         img, joint_coord, joint_valid, hand_type, inv_trans = augmentation(img, bbox, joint_coord, joint_valid, hand_type, self.mode, self.joint_type)
         rel_root_depth = np.array([joint_coord[self.root_joint_idx['left'],2] - joint_coord[self.root_joint_idx['right'],2]],dtype=np.float32).reshape(1)
         root_valid = np.array([joint_valid[self.root_joint_idx['right']] * joint_valid[self.root_joint_idx['left']]],dtype=np.float32).reshape(1) if hand_type[0]*hand_type[1] == 1 else np.zeros((1),dtype=np.float32)
-        # transform to output heatmap space
+        
+        # transform joint coordinates to output heatmap space
         joint_coord, joint_valid, rel_root_depth, root_valid = transform_input_to_output_space(joint_coord, joint_valid, rel_root_depth, root_valid, self.root_joint_idx, self.joint_type)
         img = self.transform(img.astype(np.float32))/255.
+
+        print('----------joint_coord\n', joint_coord)
+        print('joint_valid\n', joint_valid)
+        print('rel_root_depth\n', rel_root_depth)
+        print('root_valid\n', root_valid)
         
         inputs = {'img': img, 'img_path': img_path}
 
@@ -190,16 +217,23 @@ class Dataset(torch.utils.data.Dataset):
                      'capture': int(data['capture']), 
                      'cam': int(data['cam']), 
                      'frame': int(data['frame'])}
-        return inputs, targets, meta_info
+        
+        return inputs, targets, meta_info, data
 
-    def evaluate(self, preds, mode = 'test', save_dir = None):
-        assert mode in ('test', 'validation')
+    def evaluate_per_iter(self, preds, targets = None, meta_info = None, mode = 'test',  save_dir = None):
+        pass
+
+
+    def evaluate(self, preds, mode = 'test',  save_dir = None):
 
         print() 
         print('Evaluation start...')
 
         gts = self.datalist
-        preds_joint_coord, preds_rel_root_depth, preds_hand_type, inv_trans = preds['joint_coord'], preds['rel_root_depth'], preds['hand_type'], preds['inv_trans']
+        preds_joint_coord = preds['joint_coord']
+        preds_rel_root_depth = preds['rel_root_depth']
+        preds_hand_type = preds['hand_type']
+        inv_trans =  preds['inv_trans']
         # if preds_joint_coord is tensor, convert it to numpy
         if isinstance(preds_joint_coord, torch.Tensor):
             preds_joint_coord = preds_joint_coord.cpu().numpy()
@@ -210,15 +244,21 @@ class Dataset(torch.utils.data.Dataset):
         # assert len(gts) == len(preds_joint_coord)
         # sample_num = len(gts)
         
-        mpjpe_sh = [[] for _ in range(self.joint_num*2)]
-        mpjpe_ih = [[] for _ in range(self.joint_num*2)]
+        mpjpe_sh = [[] for _ in range(self.joint_num*2)] # for single hand
+        mpjpe_ih = [[] for _ in range(self.joint_num*2)] # for interacting hands, which means two hands
         mrrpe = []
         acc_hand_cls = 0
         hand_cls_cnt = 0
         sample_num = preds_joint_coord.shape[0]
         for n in range(sample_num):
             data = gts[n]
-            bbox, cam_param, joint, gt_hand_type, hand_type_valid = data['bbox'], data['cam_param'], data['joint'], data['hand_type'], data['hand_type_valid']
+
+            bbox = data['bbox']
+            cam_param = data['cam_param']
+            joint = data['joint']
+            gt_hand_type = data['hand_type']
+            hand_type_valid = data['hand_type_valid']
+
             focal = cam_param['focal']
             princpt = cam_param['princpt']
             gt_joint_coord = joint['cam_coord']
@@ -354,17 +394,19 @@ class Dataset(torch.utils.data.Dataset):
 if __name__ == '__main__':
     import torchvision.transforms as transforms
     transform = transforms.Compose([transforms.ToTensor()])
-    dataset = Dataset(transform, 'train')
+    dataset = Dataset(transform, 'val')
     batch_size = 1
     num_workers = 0
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = num_workers)
-
+    shuffle = True
+    # shuffle = False
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers = num_workers)
 
     i = 0
+    interaction_i = 0
     for batch in dataloader:
 
-        inputs, targets, meta_info = batch
+        inputs, targets, meta_info, _ = batch
         '''        inputs = {'img': img}
         targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
@@ -381,6 +423,18 @@ if __name__ == '__main__':
         img = (inputs['img'].cpu().numpy()*255).astype(np.uint8)
         img_path = inputs['img_path']
         img_name = img_path[0].split('/')[-1]
-        shutil.copy(img_path[0], f'./{img_name}')
-        cv2.imwrite(f'crop_{img_name}', img[0].transpose(1,2,0)[:,:,::-1])
-        break
+        shutil.copy(img_path[0], f'img_examples/{img_name}')
+        cv2.imwrite(f"img_examples/{img_name.split('.')[0]}_crop.{img_name.split('.')[1]}", img[0].transpose(1,2,0)[:,:,::-1])
+        print('')
+        print('')
+        # break
+        i += 1
+
+        # if i > 6:
+        #     break
+        if 'ROM02_Interaction_2_Hand' in img_path:
+            interaction_i += 1
+            if i > 0:
+                break
+            
+            

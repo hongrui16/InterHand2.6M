@@ -120,7 +120,7 @@ class Dataset(torch.utils.data.Dataset):
         inputs = {'img': img}
         targets = {'joint_coord': joint_coord, 'rel_root_depth': rel_root_depth, 'hand_type': hand_type}
         meta_info = {'joint_valid': joint_valid, 'root_valid': root_valid, 'inv_trans': inv_trans, 'hand_type_valid': 1}
-        return inputs, targets, meta_info
+        return inputs, targets, meta_info, data
 
     def evaluate(self, preds, save_dir = None):
 

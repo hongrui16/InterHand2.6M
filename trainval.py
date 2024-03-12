@@ -214,7 +214,7 @@ class Worker(object):
         epoch_rel_root_depth_loss = []
         epoch_hand_type_loss = []
 
-        for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
+        for idx, (inputs, targets, meta_info, _) in enumerate(tbar): # 6 ~ 10 s
             if cfg.fast_debug and idx > 2:
                 break     
             self.optimizer.zero_grad()
@@ -293,7 +293,7 @@ class Worker(object):
         epoch_rel_root_depth_loss = []
         epoch_hand_type_loss = []
 
-        for idx, (inputs, targets, meta_info) in enumerate(tbar): # 6 ~ 10 s
+        for idx, (inputs, targets, meta_info, _) in enumerate(tbar): # 6 ~ 10 s
             if cfg.fast_debug and idx > 2:
                 break     
             self.optimizer.zero_grad()
